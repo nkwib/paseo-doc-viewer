@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+### New
+
+- On Paseo 0.13.0 and later, files opened from Paseo's Files tree, chat links and file search open in the viewer, inside Paseo's file tab (a file panel named Viewer). PDF, Office, Parquet, video, audio, TIFF and HEIC files open there without a prompt. CSV, TSV and JSON Lines also have Paseo's Source editor, so Paseo asks which to use each time until Don't ask me again is ticked, and a link to a line opens Source. PNG, JPEG, GIF and WebP stay with Paseo's Image panel. New `doc.locate` RPC turns the tab's absolute path into a workspace path on the daemon, and only for a file whose real path is inside the workspace; any other file shows Outside the workspace. Older Paseo versions are unaffected.
+
 ### Fixed
 
 - The reader's Open in tab button in Documents is now Open full view, and the first-open chooser and the Open documents setting hint say Full view opens the standalone viewer, not a tab.
