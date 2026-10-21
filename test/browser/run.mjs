@@ -112,13 +112,16 @@ try {
     const calls = await rpcCallsFrom(from, method, input);
     return calls.length > 0 && calls.every(Boolean);
   }, { message: `${method} answered`, timeout: 30_000 }).toBe(true);
+  // Waits until every call of a method made so far is answered. Thumbnails take turns in one slot and
+  // a call can take the whole RPC deadline (20 s), so this has rpcAnswered's limit too.
+  const rpcSettled = (method) => expect.poll(() => page.evaluate((name) => window.__rpcCalls.every((call) => call.method !== name || call.settled), method), { message: `${method} settled`, timeout: 30_000 }).toBe(true);
   // Lets a render the last answer caused reach the screen, before a check that it changed nothing there.
   const nextFrame = () => page.evaluate(() => new Promise((resolve) => requestAnimationFrame(() => setTimeout(resolve, 0))));
   // The viewer saves its position a second after the last change, and at once when it closes, so a
   // reopen after every save is answered reads the latest.
   const reopenViewer = async () => {
     await page.getByRole("button", { name: "Close viewer", exact: true }).click();
-    await expect.poll(() => page.evaluate(() => window.__rpcCalls.every((call) => call.method !== "viewer-state.write" || call.settled))).toBe(true);
+    await rpcSettled("viewer-state.write");
     await page.getByRole("button", { name: "Reopen viewer", exact: true }).click();
   };
   await page.goto(`http://127.0.0.1:${port}`);
@@ -492,7 +495,7 @@ try {
   holding = false;
   for (const route of held) await route.continue();
   // Once every call is settled, any refill they caused is already listed.
-  await expect.poll(async () => (await callsSinceMap()).every((call) => call.settled)).toBe(true);
+  await rpcSettled("doc.thumbnail");
   expect((await callsSinceMap()).map((call) => call.page).sort()).toEqual(["statement.pdf 1", "statement.pdf 2"]);
   await expect.poll(() => thumbnails.inFlight).toBe(0);
   await page.unroute("**/rpc", holdThumbnails);
@@ -1162,13 +1165,12 @@ try {
   await expect(wordRow.locator("img")).toHaveCount(0);
   await page.screenshot({ path: `${shots}/harness-previews.png`, fullPage: true });
   // Typing narrows and widens the tiles; each file and revision is still asked for once, a failed one too.
-  const thumbnailsSettled = () => page.evaluate(() => window.__rpcCalls.every((call) => call.method !== "doc.thumbnail" || call.settled));
-  await expect.poll(thumbnailsSettled).toBe(true);
+  await rpcSettled("doc.thumbnail");
   for (const query of ["p", "pd", "pdf", "pd", "p", ""]) {
     await page.getByRole("textbox", { name: "Search documents", exact: true }).fill(query);
     await nextFrame();
   }
-  await expect.poll(thumbnailsSettled).toBe(true);
+  await rpcSettled("doc.thumbnail");
   const previewCalls = await page.evaluate((from) => window.__rpcCalls.slice(from).filter((call) => call.method === "doc.thumbnail").map((call) => `${call.input.path} ${call.input.revision} ${call.input.width}`), previewsFrom);
   expect(previewCalls.length).toBeGreaterThan(3);
   expect(previewCalls.length).toBe(new Set(previewCalls).size);
