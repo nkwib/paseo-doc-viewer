@@ -9,12 +9,13 @@ import { listedFiles, TURN_CARDS_SETTING_HINT, TURN_FILE_PILL, TURN_GROUP, TURN_
 import { baseName, humanSize, KIND_ICON, KIND_LABEL, parentDir } from "./format";
 import { kindColor, type KindPalette } from "./kind-colors";
 import { watchOpenedRevisions } from "./opened-marks";
-import { DOCUMENTS_PANEL_ID, documentScreen, SETTINGS_SCREEN_ID } from "./recent";
+import { documentScreen, SETTINGS_SCREEN_ID } from "./recent";
+import type { DocumentOpener } from "./open-target";
 import type { ThumbnailLoader, ThumbnailState } from "./thumbnails";
 import { makeStyles, StatusPill, ToolbarButton, type Styles } from "./ui";
 import { useKindPalette } from "./use-kind-colors";
 
-type CardClient = Pick<PluginClientContext, "openScreen" | "openPanel" | "openSettings" | "rpc">;
+type CardClient = Pick<PluginClientContext, "openSettings" | "rpc"> & { openDocument: DocumentOpener; showDocuments(workspaceId: string): void };
 type Theme = PluginTimelineItemProps["theme"];
 
 // Closes over the client: timeline item props carry no navigation or RPC provider in this SDK.
@@ -40,7 +41,7 @@ export function createTurnDocsCard(client: CardClient) {
         setSettingsFailed(true);
       }
     };
-    const openDocuments = () => client.openPanel(DOCUMENTS_PANEL_ID, { workspaceId: data.workspaceId });
+    const openDocuments = () => client.showDocuments(data.workspaceId);
     const fileRow = (file: TurnDocsFile, index: number, within = "") => (
       <FileRow
         key={file.path}
@@ -52,7 +53,7 @@ export function createTurnDocsCard(client: CardClient) {
         size={size}
         styles={styles}
         theme={theme}
-        onOpen={() => client.openScreen(documentScreen(data.workspaceId, file.path, siblings))}
+        onOpen={() => client.openDocument(documentScreen(data.workspaceId, file.path, siblings), layout)}
       />
     );
     let offset = data.files.length;

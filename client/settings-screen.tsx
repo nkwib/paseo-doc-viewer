@@ -1,8 +1,9 @@
 import { useSettings, type PluginSurfaceProps } from "@getpaseo/plugin/client";
-import { SettingsAction, SettingsCard, SettingsSection, SettingsSwitch } from "@getpaseo/plugin/client/ui";
+import { SettingsAction, SettingsCard, SettingsSection, SettingsSelect, SettingsSwitch } from "@getpaseo/plugin/client/ui";
 import { Text, View } from "react-native";
 import { viewerSettings } from "../shared/settings";
 import { kindColorsSetting } from "./use-kind-colors";
+import { OPEN_OPTIONS, openPreference, type OpenPreference } from "./open-target";
 
 export function ViewerSettings({ theme }: PluginSurfaceProps) {
   const settings = useSettings(viewerSettings);
@@ -21,6 +22,9 @@ export function ViewerSettings({ theme }: PluginSurfaceProps) {
   const saveKindColors = async (kindColors: boolean) => {
     if (await settings.save({ ...values, kindColors }, settings.revision)) kindColorsSetting.set(kindColors);
   };
+  const saveOpenDocuments = async (openDocuments: OpenPreference) => {
+    if (await settings.save({ ...values, openDocuments }, settings.revision)) openPreference.set(openDocuments);
+  };
   return (
     <View style={{ gap: 24 }}>
       <SettingsSection title="Agent turns">
@@ -36,6 +40,14 @@ export function ViewerSettings({ theme }: PluginSurfaceProps) {
       </SettingsSection>
       <SettingsSection title="Documents">
         <SettingsCard>
+          <SettingsSelect
+            label="Open documents"
+            hint="On a wide window. Side by side opens Documents next to the chat; Full view opens a document tab. Auto picks side by side from 1,100 pt wide. A Documents panel already on screen always shows the document, and phones always use the full screen."
+            value={values.openDocuments ?? "auto"}
+            options={OPEN_OPTIONS}
+            disabled={settings.saving}
+            onValueChange={(openDocuments: OpenPreference) => void saveOpenDocuments(openDocuments)}
+          />
           <SettingsSwitch
             label="Color file types"
             hint="File icons take a color per type in Documents and turn cards. Off shows every icon in gray. Applies to every device on this host."

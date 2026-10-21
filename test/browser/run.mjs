@@ -90,6 +90,15 @@ try {
   browser = await chromium.launch(launch);
   page = await browser.newPage({ viewport: { width: 1100, height: 1000 }, acceptDownloads: true });
   const failures = [];
+  // PDFs page with previous, a page number field and next.
+  const pageField = (target) => target.getByRole("textbox", { name: /^Page number of \d+$/ });
+  // Documents keeps a PDF opened from it on screen until Back, so return to the list when one is open.
+  const showDocuments = async (target) => {
+    await target.getByRole("button", { name: "Documents", exact: true }).click();
+    const back = target.getByRole("button", { name: "Back to documents", exact: true });
+    await expect(target.getByRole("textbox", { name: "Search documents", exact: true }).or(back)).toBeVisible();
+    if (await back.count()) await back.click();
+  };
   page.on("pageerror", (error) => { failures.push(error.message); console.error("Browser error:", error.message); });
   // For each RPC call the page made from index `from` on that matches, whether it has been answered.
   const rpcCallsFrom = (from, method, input = {}) => page.evaluate(({ from, method, input }) => {
@@ -115,7 +124,8 @@ try {
   await page.goto(`http://127.0.0.1:${port}`);
   await expect(page.getByRole("button", { name: "Next page", exact: true })).toBeVisible();
   await page.getByRole("button", { name: "Next page", exact: true }).click();
-  await expect(page.getByText("2 / 3", { exact: true })).toBeVisible();
+  await expect(pageField(page)).toHaveValue("2");
+  await expect(page.getByText("/ 3", { exact: true })).toBeVisible();
   // Desktop keeps compact 28 px controls.
   expect((await page.getByRole("button", { name: "Next page", exact: true }).boundingBox()).height).toBe(28);
   await page.getByRole("button", { name: "Zoom in", exact: true }).click();
@@ -135,10 +145,10 @@ try {
   await page.keyboard.press("PageDown");
   await expect.poll(scroller).toBeGreaterThan(before);
   await reopenViewer();
-  await expect(page.getByText("2 / 3", { exact: true })).toBeVisible();
+  await expect(pageField(page)).toHaveValue("2");
   await expect(page.getByText("1.5x", { exact: true })).toBeVisible();
   await page.getByRole("button", { name: "Reset reading position", exact: true }).click();
-  await expect(page.getByText("1 / 3", { exact: true })).toBeVisible();
+  await expect(pageField(page)).toHaveValue("1");
   await page.getByRole("button", { name: "Find in document", exact: true }).click();
   await page.getByRole("textbox", { name: "Find in document", exact: true }).fill("statement");
   await page.getByRole("button", { name: "Search", exact: true }).click();
@@ -148,7 +158,7 @@ try {
   await expect(page.getByRole("button", { name: "Page 1: Searchable statement page 1", exact: true })).toHaveAttribute("aria-pressed", "true");
   // A PDF match with page boxes stays on the rendered page and highlights it there.
   await expect(page.getByRole("button", { name: "Show page text", exact: true })).toBeVisible();
-  await expect(page.getByText("1 / 3", { exact: true })).toBeVisible();
+  await expect(pageField(page)).toHaveValue("1");
   await expect(page.getByLabel("Current match on page", { exact: true })).toHaveCount(1);
   await expect(page.getByLabel("Match on page", { exact: true })).toHaveCount(0);
   await page.screenshot({ path: `${directory}/pdf-find.png`, fullPage: true });
@@ -372,16 +382,16 @@ try {
   const sinceSlowRead = await rpcCallCount();
   await page.getByRole("button", { name: "statement.pdf", exact: true }).click();
   await page.getByRole("button", { name: "Next page", exact: true }).click();
-  await expect(page.getByText("2 / 3", { exact: true })).toBeVisible();
+  await expect(pageField(page)).toHaveValue("2");
   holdingReads = false;
   for (const route of heldReads.splice(0)) await route.continue().catch(() => {});
   await rpcAnswered(sinceSlowRead, "viewer-state.read", { path: "statement.pdf" });
   await nextFrame();
-  await expect(page.getByText("2 / 3", { exact: true })).toBeVisible();
+  await expect(pageField(page)).toHaveValue("2");
   // After the read timed out, a late answer must not enable writes over unread history. Closing
   // saves a pending position at once, so a save the late answer had enabled would be sent there.
   await page.getByRole("button", { name: "Next page", exact: true }).click();
-  await expect(page.getByText("3 / 3", { exact: true })).toBeVisible();
+  await expect(pageField(page)).toHaveValue("3");
   await page.getByRole("button", { name: "Close viewer", exact: true }).click();
   expect(await rpcCallsFrom(sinceSlowRead, "viewer-state.write")).toEqual([]);
   await page.getByRole("button", { name: "Reopen viewer", exact: true }).click();
@@ -415,13 +425,20 @@ try {
   await expect(page.getByRole("img", { name: "Page 60 thumbnail", exact: true })).toBeVisible();
   expect(thumbnails.maxInFlight).toBeLessThanOrEqual(2);
   await page.getByRole("button", { name: "Open page 42", exact: true }).click();
-  await expect(page.getByText("42 / 60", { exact: true })).toBeVisible();
+  await expect(pageField(page)).toHaveValue("42");
   await expect(page.getByRole("img", { name: "Page 42", exact: true })).toBeVisible();
-  // Desktop strip: previous and next hug the chips, and the current chip is shown.
-  const lastChip = await page.getByRole("button", { name: "Page 60", exact: true }).boundingBox();
-  const nextBox = await page.getByRole("button", { name: "Next page", exact: true }).boundingBox();
-  expect(nextBox.x - (lastChip.x + lastChip.width)).toBeLessThanOrEqual(8);
-  await expect(page.getByRole("button", { name: "Page 42", exact: true })).toHaveAttribute("aria-pressed", "true");
+  // A typed page number opens that page, and one past the end opens the last.
+  await pageField(page).fill("61");
+  await pageField(page).press("Enter");
+  await expect(pageField(page)).toHaveValue("60");
+  await expect(page.getByRole("button", { name: "Next page", exact: true })).toBeDisabled();
+  await pageField(page).fill("4");
+  await page.getByRole("button", { name: "Previous page", exact: true }).evaluate((button) => button.click());
+  await expect(page.getByRole("img", { name: "Page 59", exact: true })).toBeVisible();
+  await expect(pageField(page)).toHaveValue("4");
+  await pageField(page).fill("42");
+  await pageField(page).press("Enter");
+  await expect(pageField(page)).toHaveValue("42");
   await page.getByRole("button", { name: "Page map", exact: true }).click();
   await expect(page.locator('[aria-current="page"]')).toHaveAttribute("aria-label", "Open page 42");
   await page.getByRole("button", { name: "Pin page 42", exact: true }).click();
@@ -432,12 +449,12 @@ try {
   await page.screenshot({ path: `${directory}/page-pins.png`, fullPage: true });
   await page.getByRole("button", { name: "Close page map", exact: true }).click();
   await page.getByRole("button", { name: "Reset reading position", exact: true }).click();
-  await expect(page.getByText("1 / 60", { exact: true })).toBeVisible();
+  await expect(pageField(page)).toHaveValue("1");
   await page.getByRole("button", { name: "Close viewer", exact: true }).click();
   await page.getByRole("button", { name: "Reopen viewer", exact: true }).click();
   await page.getByRole("button", { name: "Page map", exact: true }).click();
   await page.getByRole("button", { name: "Open pin: Page 42, Chart", exact: true }).click();
-  await expect(page.getByText("42 / 60", { exact: true })).toBeVisible();
+  await expect(pageField(page)).toHaveValue("42");
   // A rewrite keeps the pin but asks the user to check it; confirming takes the new revision.
   const rewritten = await PDFDocument.load(await readFile(`${directory}/report.pdf`));
   rewritten.removePage(0);
@@ -503,7 +520,7 @@ try {
   await markReviewed.click();
   await expect(markReviewed).toHaveAttribute("aria-pressed", "true");
   expect(reviews).toHaveLength(1);
-  await page.getByRole("button", { name: "Documents", exact: true }).click();
+  await showDocuments(page);
   // First-run tips sit at the top of Documents: Next steps through them, Skip hides them for good
   // (the server keeps that), and the Tips link under the list brings them back.
   await expect(page.getByLabel("Tip 1 of 4", { exact: true })).toBeVisible();
@@ -515,7 +532,7 @@ try {
   await page.getByRole("button", { name: "Skip tips", exact: true }).click();
   await expect(page.getByLabel(/^Tip \d of 4$/)).toHaveCount(0);
   await page.goto(`http://127.0.0.1:${port}`);
-  await page.getByRole("button", { name: "Documents", exact: true }).click();
+  await showDocuments(page);
   await expect(page.getByRole("button", { name: /^statement\.pdf, PDF, .*, reviewed$/ })).toBeVisible();
   await expect(page.getByLabel(/^Tip \d of 4$/)).toHaveCount(0);
   await page.getByRole("button", { name: "Show tips", exact: true }).click();
@@ -544,20 +561,24 @@ try {
   await expect(page.getByRole("button", { name: /, changed / })).toHaveCount(1);
   await page.screenshot({ path: `${directory}/needs-review.png`, fullPage: true });
   await page.getByRole("button", { name: /^statement\.pdf, PDF, / }).click();
-  await expect(page.getByText("Changed since review", { exact: true })).toBeVisible();
-  await expect(page.getByText("Changed since review", { exact: true })).toBeVisible();
+  // Documents keeps its list, hidden, under the reader, so text checks look at what is shown.
+  const reviewPill = page.getByText("Changed since review", { exact: true }).filter({ visible: true });
+  await expect(reviewPill).toBeVisible();
   // A rewrite the open viewer has not picked up yet must not be marked reviewed.
   await touch("statement.pdf", Date.now() / 1000 + 120);
   const sinceRewrite = await rpcCallCount();
   await markReviewed.click();
   await expect.poll(() => rpcCallsFrom(sinceRewrite, "viewer-state.review")).toEqual([true]);
   await expect(markReviewed).toHaveAttribute("aria-pressed", "false");
-  await expect(page.getByText("Changed since review", { exact: true })).toBeVisible();
+  await expect(reviewPill).toBeVisible();
   // The viewer shows the rewrite once a revision poll answers, one poll interval at most.
   await rpcAnswered(sinceRewrite, "doc.open", { path: "statement.pdf" });
   await markReviewed.click();
   await expect(markReviewed).toHaveAttribute("aria-pressed", "true");
-  await page.getByRole("button", { name: "Documents", exact: true }).click();
+  // Back finds the list as it was left, still filtered to Needs review, and refreshed at once.
+  await page.getByRole("button", { name: "Back to documents", exact: true }).click();
+  await expect(page.getByText("No files changed since review", { exact: true })).toBeVisible({ timeout: 2000 });
+  await page.getByRole("button", { name: "Needs review, 0 documents", exact: true }).click();
   await expect(page.getByRole("button", { name: /^statement\.pdf, PDF, .*, reviewed$/ })).toBeVisible();
   page.off("request", recordReview);
   // A timer does not run while a window is away, so the times are read again when it gets focus or shows again.
@@ -582,8 +603,9 @@ try {
   await page.context().grantPermissions(["clipboard-read", "clipboard-write"]);
   await page.getByRole("button", { name: "invoices.xlsx", exact: true }).click();
   await page.getByRole("button", { name: "statement.pdf", exact: true }).click();
-  await page.getByRole("button", { name: "Page 1", exact: true }).click();
-  await expect(page.getByText("1 / 3", { exact: true })).toBeVisible();
+  await pageField(page).fill("1");
+  await pageField(page).press("Enter");
+  await expect(pageField(page)).toHaveValue("1");
   await page.getByRole("button", { name: "Add note to page 1", exact: true }).click();
   await page.getByRole("textbox", { name: "Note text", exact: true }).fill("Legend overlaps the axis");
   await page.getByRole("button", { name: "Add note", exact: true }).click();
@@ -688,7 +710,7 @@ try {
   // starts a new app session, so this visit compares against the first one above.
   await agentWrote(() => writeFile(`${root}/fresh.csv`, "a,b\n1,2\n"));
   await phone.goto(`http://127.0.0.1:${port}/?compact`);
-  await phone.getByRole("button", { name: "Documents", exact: true }).click();
+  await showDocuments(phone);
   await expect(phone.getByRole("button", { name: /^fresh\.csv, CSV table, .*, new$/ })).toBeVisible();
   await expect(phone.getByRole("button", { name: /^statement\.pdf, PDF, .*, changed since review$/ })).toBeVisible();
   await expect(chipIcon(phone, "New, 1 document", "Sparkles")).toHaveCSS("color", "rgb(99, 102, 241)");
@@ -703,7 +725,11 @@ try {
   const openedMark = phone.waitForResponse((response) => response.url().endsWith("/rpc") && response.request().postData()?.includes('"viewer-state.opened"'));
   await phone.getByRole("button", { name: /^fresh\.csv, CSV table, .*, new$/ }).click();
   expect(await (await openedMark).json()).toEqual({ marked: true });
-  await phone.getByRole("button", { name: "Documents", exact: true }).click();
+  // A CSV reads inside Documents too; Back keeps the New filter, so the opened file has left it.
+  await expect(phone.locator("main").getByLabel("fresh.csv", { exact: true })).toBeVisible();
+  await phone.getByRole("button", { name: "Back to documents", exact: true }).click();
+  await expect(phone.getByText("No new files", { exact: true })).toBeVisible();
+  await phone.getByRole("button", { name: "New, 0 documents", exact: true }).click();
   await expect(phone.getByRole("button", { name: /^fresh\.csv, CSV table, changed [^,]*$/ })).toBeVisible();
   await expect(phone.getByRole("button", { name: /^New, / })).toHaveCount(0);
   const sinceFreshRewrite = await agentWrote(() => writeFile(`${root}/fresh.csv`, "a,b\n1,2\n3,4\n"));
@@ -731,18 +757,18 @@ try {
   const findBox = await phone.getByRole("button", { name: "Find in document", exact: true }).boundingBox();
   const downloadBox = await phone.getByRole("button", { name: "Download original", exact: true }).boundingBox();
   expect(Math.abs(downloadBox.y - findBox.y)).toBeLessThan(2);
-  // Phones show `< n / N >` without chips; n / N opens the page map, and Reset is left to Fit and the map.
+  // Phones show `< [n] / N >`, and Reset is left to Fit and the map.
   await expect(phone.getByRole("button", { name: /^Page \d+$/ })).toHaveCount(0);
   await expect(phone.getByRole("button", { name: "Reset reading position", exact: true })).toHaveCount(0);
-  await phone.getByRole("button", { name: /^Page \d+ of \d+, open page map$/ }).click();
+  await phone.getByRole("button", { name: "Page map", exact: true }).click();
   await phone.getByLabel("Page thumbnails", { exact: true }).evaluate((element) => { element.parentElement.parentElement.scrollTop = 0; });
   await phone.getByRole("button", { name: "Open page 1", exact: true }).click();
-  await expect(phone.getByText(/^1 \/ \d+$/)).toBeVisible();
+  await expect(pageField(phone)).toHaveValue("1");
   await phone.getByRole("button", { name: "Add note to page 1", exact: true }).click();
   await phone.getByRole("textbox", { name: "Note text", exact: true }).fill("Fits on a phone");
   await phone.getByRole("button", { name: "Add note", exact: true }).click();
   await expect(phone.getByRole("button", { name: "Review notes (1)", exact: true })).toBeVisible();
-  for (const name of ["Find in document", "Page map", "Add note to page 1", "Review notes (1)", "Mark reviewed", "Download original", "Previous page", "Page 1 of 59, open page map", "Next page", "Show page text", "Zoom out", "Zoom in"]) {
+  for (const name of ["Find in document", "Page map", "Add note to page 1", "Review notes (1)", "Mark reviewed", "Download original", "Previous page", "Next page", "Show page text", "Zoom out", "Zoom in"]) {
     const box = await phone.getByRole("button", { name, exact: true }).boundingBox();
     expect(box, name).not.toBeNull();
     expect(box.x, name).toBeGreaterThanOrEqual(0);
@@ -750,7 +776,10 @@ try {
     // 40 pt controls plus a 4 pt hit slop make 44 pt touch targets on phones.
     expect(box.height, name).toBeGreaterThanOrEqual(40);
   }
-  const counter = await phone.getByText(/^1 \/ \d+$/).boundingBox();
+  const field = await pageField(phone).boundingBox();
+  expect(field.x + field.width).toBeLessThanOrEqual(390);
+  expect(field.height).toBeGreaterThanOrEqual(40);
+  const counter = await phone.getByText(/^\/ \d+$/).boundingBox();
   expect(counter.height).toBeLessThan(20);
   expect(await phone.evaluate(() => document.querySelector("main").scrollWidth)).toBe(390);
   await phone.screenshot({ path: `${directory}/phone-toolbar.png` });
@@ -905,11 +934,16 @@ try {
   await cardFrame.screenshot({ path: `${shots}/harness-phone-card-opened.png` });
   await page.getByRole("button", { name: pdfRow }).click();
   await expect(page.getByText("Document 1 of 4", { exact: true })).toBeVisible();
-  await expect(page.getByRole("button", { name: "Page map", exact: true })).toBeVisible();
+  // The stepper shows while the document loads too; More comes with the loaded toolbar.
+  await expect(page.getByRole("button", { name: "More actions", exact: true })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Page map", exact: true })).toHaveCount(0);
   const stepperBox = await page.getByRole("button", { name: "Next document", exact: true }).boundingBox();
-  const toolbarBox = await page.getByRole("button", { name: "Find in document", exact: true }).boundingBox();
-  expect(stepperBox.y).toBeGreaterThan(toolbarBox.y + toolbarBox.height);
-  for (const name of ["Previous document", "Next document", "Find in document", "Page map", "Mark reviewed", "Download original"]) {
+  const toolbarBox = await page.getByRole("button", { name: "More actions", exact: true }).boundingBox();
+  expect(Math.abs(stepperBox.y - toolbarBox.y)).toBeLessThan(4);
+  await page.getByRole("button", { name: "More actions", exact: true }).click();
+  await expect(page.getByRole("button", { name: "Page map", exact: true })).toBeVisible();
+  await page.screenshot({ path: `${shots}/harness-phone-viewer-more.png` });
+  for (const name of ["Previous document", "Next document", "Find in document", "More actions", "Page map", "Mark reviewed", "Download original"]) {
     const box = await page.getByRole("button", { name, exact: true }).boundingBox();
     expect(box.x + box.width, name).toBeLessThanOrEqual(390);
     expect(box.height, name).toBeGreaterThanOrEqual(40);
@@ -983,11 +1017,11 @@ try {
   for (const button of await cardFrame.getByRole("button").all()) expect((await button.boundingBox()).x + (await button.boundingBox()).width).toBeLessThanOrEqual(390);
   expect(await page.evaluate(() => document.querySelector("main").scrollWidth)).toBe(390);
   await page.getByRole("button", { name: "+1 more in Documents", exact: true }).click();
-  expect(await page.evaluate(() => window.__openedPanel)).toBe("documents");
+  expect(await page.evaluate(() => window.__openedPanel)).toEqual({ id: "documents", workspaceId: "workspace" });
   await cardFrame.screenshot({ path: `${collapseShots}/harness-phone-expanded.png` });
   await page.setViewportSize({ width: 1100, height: 1000 });
   await page.goto(`http://127.0.0.1:${port}`);
-  await page.getByRole("button", { name: "Documents", exact: true }).click();
+  await showDocuments(page);
   const rowIcon = (row, name) => page.getByRole("button", { name: row }).locator(`[data-icon="${name}"]`);
   await expect(rowIcon(/^report\.pdf, PDF, /, "FileText")).toHaveCSS("color", "rgb(234, 152, 147)");
   await expect(rowIcon(/^invoices\.xlsx, Spreadsheet, /, "FileSpreadsheet")).toHaveCSS("color", "rgb(143, 249, 156)");
@@ -1004,13 +1038,13 @@ try {
   await expect(cardFrame.locator('[data-icon="Folder"]').first()).toHaveCSS("color", "rgb(156, 163, 175)");
   await fetch(`http://127.0.0.1:${port}/settings?kindColors=0`);
   await page.goto(`http://127.0.0.1:${port}`);
-  await page.getByRole("button", { name: "Documents", exact: true }).click();
+  await showDocuments(page);
   await expect(rowIcon(/^report\.pdf, PDF, /, "FileText")).toHaveCSS("color", "rgb(156, 163, 175)");
   await expect(chipIcon(page, /^PDF, \d+ documents$/, "FileText")).toHaveCSS("color", "rgb(156, 163, 175)");
   await page.screenshot({ path: `${shots}/harness-chips-colors-off.png` });
   await fetch(`http://127.0.0.1:${port}/settings?kindColors=1`);
   await page.goto(`http://127.0.0.1:${port}`);
-  await page.getByRole("button", { name: "Documents", exact: true }).click();
+  await showDocuments(page);
   const viewButton = (name) => page.getByRole("button", { name, exact: true });
   await expect(viewButton("List view")).toHaveAttribute("aria-pressed", "true");
   await expect(viewButton("Details view")).toHaveAttribute("aria-pressed", "false");
@@ -1064,11 +1098,11 @@ try {
   await page.getByRole("textbox", { name: "Search documents", exact: true }).fill("invoices");
   await expect(page.getByRole("button", { name: /, changed / })).toHaveCount(1);
   await page.goto(`http://127.0.0.1:${port}`);
-  await page.getByRole("button", { name: "Documents", exact: true }).click();
+  await showDocuments(page);
   await expect(viewButton("Details view")).toHaveAttribute("aria-pressed", "true");
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto(`http://127.0.0.1:${port}/?compact`);
-  await page.getByRole("button", { name: "Documents", exact: true }).click();
+  await showDocuments(page);
   await expect(viewButton("List view")).toHaveAttribute("aria-pressed", "true");
   await viewButton("Details view").click();
   await expect(page.getByText("NAME", { exact: true })).toBeVisible();
@@ -1087,7 +1121,7 @@ try {
   expect(await page.evaluate(() => document.querySelector("main").scrollWidth)).toBe(390);
   await page.setViewportSize({ width: 1100, height: 1000 });
   await page.goto(`http://127.0.0.1:${port}`);
-  await page.getByRole("button", { name: "Documents", exact: true }).click();
+  await showDocuments(page);
   // The answer to the List press is held until after Preview is pressed; it must not switch the view back.
   let heldWrite;
   const holdListWrite = async (route) => {
@@ -1142,7 +1176,7 @@ try {
   await expect(page.getByRole("button", { name: /, changed / })).toHaveCount(2);
   await page.getByRole("textbox", { name: "Search documents", exact: true }).fill("");
   await page.goto(`http://127.0.0.1:${port}/?width=230`);
-  await page.getByRole("button", { name: "Documents", exact: true }).click();
+  await showDocuments(page);
   await expect(viewButton("Previews view")).toHaveAttribute("aria-pressed", "true");
   await expect(page.getByRole("button", { name: /^report\.pdf, PDF, / })).toBeVisible();
   await expect(page.getByRole("button", { name: /^report\.pdf, PDF, / }).locator("img")).toHaveCount(0);
@@ -1151,7 +1185,7 @@ try {
   await page.screenshot({ path: `${shots}/harness-sidebar-previews.png` });
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto(`http://127.0.0.1:${port}/?compact`);
-  await page.getByRole("button", { name: "Documents", exact: true }).click();
+  await showDocuments(page);
   const sincePhonePreviews = await rpcCallCount();
   await viewButton("Previews view").click();
   await rpcAnswered(sincePhonePreviews, "doc.thumbnail", { path: "report.pdf" });
@@ -1164,7 +1198,7 @@ try {
   await viewButton("List view").click();
   await page.setViewportSize({ width: 1100, height: 1000 });
   await page.goto(`http://127.0.0.1:${port}`);
-  await page.getByRole("button", { name: "Documents", exact: true }).click();
+  await showDocuments(page);
   await viewButton("List view").click();
   await viewButton("Tree view").click();
   await expect(viewButton("Tree view")).toHaveAttribute("aria-pressed", "true");
@@ -1222,22 +1256,42 @@ try {
   await folderRow("exports").click();
   await fileRow("run-2.csv").click();
   const runs = Array.from({ length: 12 }, (_, index) => `exports/run-${index + 1}.csv`);
-  expect(JSON.parse(await page.evaluate(() => window.__openedScreen.params.siblings))).toEqual(runs);
   await expect(page.getByText("Document 2 of 12", { exact: true })).toBeVisible();
   await page.getByRole("button", { name: "Next document", exact: true }).click();
   await expect(page.getByText("Document 3 of 12", { exact: true })).toBeVisible();
-  await page.getByRole("button", { name: "Documents", exact: true }).click();
+  // Open in tab hands the document and its folder to the standalone screen.
+  expect(await page.evaluate(() => window.__openedScreen)).toBeUndefined();
+  await page.getByRole("button", { name: "Open in tab", exact: true }).click();
+  const tabbed = await page.evaluate(() => window.__openedScreen);
+  expect(tabbed).toMatchObject({ screenId: "document", params: { workspaceId: "workspace", path: "exports/run-3.csv" } });
+  expect(JSON.parse(tabbed.params.siblings)).toEqual(runs);
+  await expect(page.getByText("Document 3 of 12", { exact: true })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Back to documents", exact: true })).toHaveCount(0);
+  await showDocuments(page);
   await fileRow("run-2.csv").focus();
   await page.keyboard.press("Space");
   await expect(page.getByText("Document 2 of 12", { exact: true })).toBeVisible();
-  await page.getByRole("button", { name: "Documents", exact: true }).click();
+  await showDocuments(page);
   await expect(fileRow("run-2.csv")).toBeVisible();
   await expect(fileRow("ledger.pdf")).toHaveCount(0);
+  // A PDF opened from Tree reads inside Documents, and Previous and Next step its folder there.
+  const screenBefore = await page.evaluate(() => window.__openedScreen?.params?.path);
+  await fileRow("report.pdf").click();
+  const back = page.getByRole("button", { name: "Back to documents", exact: true });
+  await expect(back).toBeVisible();
+  await expect(page.locator("main").getByLabel("report.pdf", { exact: true })).toBeVisible();
+  await expect(page.getByText(/^Document \d+ of \d+$/)).toBeVisible();
+  await page.getByRole("button", { name: "Next document", exact: true }).click();
+  await expect(page.locator("main").getByLabel("statement.pdf", { exact: true })).toBeVisible();
+  await expect(back).toBeVisible();
+  expect(await page.evaluate(() => window.__openedScreen?.params?.path)).toBe(screenBefore);
+  await back.click();
+  await expect(fileRow("report.pdf")).toBeVisible();
   await page.goto(`http://127.0.0.1:${port}`);
-  await page.getByRole("button", { name: "Documents", exact: true }).click();
+  await showDocuments(page);
   await expect(viewButton("Tree view")).toHaveAttribute("aria-pressed", "true");
   await page.goto(`http://127.0.0.1:${port}/?width=230`);
-  await page.getByRole("button", { name: "Documents", exact: true }).click();
+  await showDocuments(page);
   await expect(viewButton("Tree view")).toHaveAttribute("aria-pressed", "true");
   const narrowSearch = await page.getByRole("textbox", { name: "Search documents", exact: true }).boundingBox();
   const narrowSwitch = await viewButton("Tree view").boundingBox();
@@ -1249,9 +1303,61 @@ try {
   await expect(fileRow("statement.pdf").getByText(/ KB · /)).toHaveCount(0);
   expect(await page.evaluate(() => document.querySelector("main").scrollWidth)).toBe(230);
   await page.screenshot({ path: `${shots}/harness-sidebar-tree.png` });
+  // A PDF read inside a 230 pt sidebar keeps its other tools behind More, and nothing runs past the edge.
+  await fileRow("report.pdf").click();
+  await expect(page.getByRole("button", { name: "Next page", exact: true })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Open in tab", exact: true })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Page map", exact: true })).toHaveCount(0);
+  await page.getByRole("button", { name: "More actions", exact: true }).click();
+  for (const name of ["Back to documents", "Open in tab", "Previous document", "Next document", "Find in document", "More actions", "Page map", "Mark reviewed", "Download original", "Previous page", "Next page", "Zoom in"]) {
+    const box = await page.getByRole("button", { name, exact: true }).boundingBox();
+    expect(box.x + box.width, name).toBeLessThanOrEqual(230);
+  }
+  expect(await page.evaluate(() => document.querySelector("main").scrollWidth)).toBe(230);
+  await page.screenshot({ path: `${shots}/harness-sidebar-reader.png` });
+  await page.getByRole("button", { name: "Back to documents", exact: true }).click();
+  // At the explorer's default 320 pt the stepper, Find and More share one row.
+  await page.goto(`http://127.0.0.1:${port}/?width=320`);
+  await showDocuments(page);
+  await fileRow("report.pdf").click();
+  const moreBox = await page.getByRole("button", { name: "More actions", exact: true }).boundingBox();
+  for (const name of ["Previous document", "Next document", "Find in document"]) {
+    const box = await page.getByRole("button", { name, exact: true }).boundingBox();
+    expect(Math.abs(box.y - moreBox.y), name).toBeLessThan(2);
+  }
+  await expect(page.getByRole("button", { name: "Page map", exact: true })).toHaveCount(0);
+  expect(await page.evaluate(() => document.querySelector("main").scrollWidth)).toBe(320);
+  await page.screenshot({ path: `${shots}/harness-explorer-reader.png` });
+  // A split pane is wider than the narrow toolbar's 480 pt, so its tools wrap inside the pane.
+  await page.goto(`http://127.0.0.1:${port}/?width=560`);
+  await showDocuments(page);
+  await fileRow("report.pdf").click();
+  await expect(page.getByRole("button", { name: "Page map", exact: true })).toBeVisible();
+  for (const name of ["Open in tab", "Next document", "Find in document", "Page map", "Mark reviewed", "Download original", "Zoom in"]) {
+    const box = await page.getByRole("button", { name, exact: true }).boundingBox();
+    expect(box.x + box.width, name).toBeLessThanOrEqual(560);
+  }
+  expect(await page.evaluate(() => document.querySelector("main").scrollWidth)).toBe(560);
+  await page.screenshot({ path: `${shots}/harness-split-reader.png` });
+  await page.goto(`http://127.0.0.1:${port}/?width=230`);
+  await showDocuments(page);
+  for (const name of ["contract.docx", "invoices.xlsx", "deck.pptx", "clip.mp4", "tone.wav", "animated.webp"]) {
+    await page.getByRole("textbox", { name: "Search documents", exact: true }).fill(name.split(".")[0]);
+    await fileRow(name).click();
+    await page.getByRole("button", { name: "More actions", exact: true }).click();
+    await expect(page.getByRole("button", { name: "Download original", exact: true })).toBeVisible();
+    for (const control of ["Back to documents", "Open in tab", "More actions", "Download original"]) {
+      const box = await page.getByRole("button", { name: control, exact: true }).boundingBox();
+      expect(box.x + box.width, `${name}: ${control}`).toBeLessThanOrEqual(230);
+    }
+    expect(await page.evaluate(() => document.querySelector("main").scrollWidth), name).toBe(230);
+    await page.screenshot({ path: `${shots}/harness-sidebar-${name}.png` });
+    await page.getByRole("button", { name: "Back to documents", exact: true }).click();
+  }
+  await page.getByRole("textbox", { name: "Search documents", exact: true }).fill("");
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto(`http://127.0.0.1:${port}/?compact`);
-  await page.getByRole("button", { name: "Documents", exact: true }).click();
+  await showDocuments(page);
   await viewButton("Tree view").click();
   const phoneSearch = await page.getByRole("textbox", { name: "Search documents", exact: true }).boundingBox();
   for (const option of ["List view", "Details view", "Previews view", "Tree view"]) {
@@ -1282,8 +1388,48 @@ try {
   await viewButton("List view").click();
   await page.setViewportSize({ width: 1100, height: 1000 });
   await page.goto(`http://127.0.0.1:${port}`);
-  await page.getByRole("button", { name: "Documents", exact: true }).click();
+  await showDocuments(page);
   await viewButton("List view").click();
+  // Every kind reads inside Documents, Previous and Next cross kinds there, and Back finds the
+  // search, type filter, collapsed headings and scroll as they were left.
+  await page.evaluate(() => { window.__openedScreen = undefined; });
+  const heading = (name) => page.getByRole("button", { name: new RegExp(`^${name}, \\d+( of \\d+)?$`) });
+  const readerTitle = (pattern) => page.locator("main").getByLabel(pattern).filter({ visible: true });
+  await heading("Images").click();
+  await expect(heading("Images")).toHaveAttribute("aria-expanded", "false");
+  const listScroller = page.getByRole("button", { name: /^contract\.docx, / }).evaluateHandle((element) => {
+    for (let node = element.parentElement; node; node = node.parentElement) if (node.scrollHeight > node.clientHeight + 40 && /auto|scroll/.test(getComputedStyle(node).overflowY)) return node;
+    return null;
+  });
+  const scrolled = await (await listScroller).evaluate((node) => { node.scrollTop = 200; return node.scrollTop; });
+  expect(scrolled).toBeGreaterThan(100);
+  await page.getByRole("button", { name: /^contract\.docx, / }).click();
+  await expect(readerTitle("contract.docx")).toBeVisible();
+  await expect(page.getByText(/^Document \d+ of \d+$/)).toBeVisible();
+  await page.getByRole("button", { name: "Previous document", exact: true }).click();
+  await expect(readerTitle(/\.pdf$/)).toBeVisible();
+  await expect(page.getByRole("button", { name: "Page map", exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "Next document", exact: true }).click();
+  await expect(readerTitle("contract.docx")).toBeVisible();
+  await page.getByRole("button", { name: "Next document", exact: true }).click();
+  await expect(readerTitle(/\.(xlsx|csv|tsv|jsonl|parquet)$/)).toBeVisible();
+  await expect(page.getByRole("button", { name: "Back to documents", exact: true })).toBeVisible();
+  expect(await page.evaluate(() => window.__openedScreen)).toBeUndefined();
+  await page.screenshot({ path: `${shots}/harness-panel-sheet.png` });
+  await page.getByRole("button", { name: "Back to documents", exact: true }).click();
+  await expect(heading("Images")).toHaveAttribute("aria-expanded", "false");
+  expect(await (await listScroller).evaluate((node) => node.scrollTop)).toBe(scrolled);
+  await page.getByRole("textbox", { name: "Search documents", exact: true }).fill("contract");
+  await page.getByRole("button", { name: /^Word, \d+ documents?$/ }).click();
+  await page.getByRole("button", { name: /^contract\.docx, / }).click();
+  await expect(readerTitle("contract.docx")).toBeVisible();
+  await page.getByRole("button", { name: "Back to documents", exact: true }).click();
+  await expect(page.getByRole("textbox", { name: "Search documents", exact: true })).toHaveValue("contract");
+  await expect(page.getByRole("button", { name: /^Word, \d+ documents?$/ })).toHaveAttribute("aria-pressed", "true");
+  await expect(viewButton("List view")).toHaveAttribute("aria-pressed", "true");
+  await page.getByRole("button", { name: /^All, \d+ documents$/ }).click();
+  await page.getByRole("textbox", { name: "Search documents", exact: true }).fill("");
+  await heading("Images").click();
   // A workspace without documents says what the scan did not reach, as a search that finds nothing does.
   const emptyScan = (route) => route.request().postDataJSON().method === "docs.recent"
     ? route.fulfill({ json: { entries: [], truncated: true, truncatedBy: ["entries", "depth"], counts: { pdf: 0, word: 0, excel: 0, powerpoint: 0, image: 0, video: 0, audio: 0 }, needsReview: 0, newCount: 0, version: "empty" } })
@@ -1294,6 +1440,56 @@ try {
   await expect(page.getByText("No documents yet", { exact: true })).toBeVisible();
   await expect(page.getByText(/ appear here\. Only the first 50,000 entries of this workspace were scanned\. Folders more than 16 levels deep were not scanned$/)).toBeVisible();
   await page.unroute("**/rpc", emptyScan);
+  // Until the open choice is answered, the first document on a wide layout asks it once; phones never do.
+  await fetch(`http://127.0.0.1:${port}/settings?openDocuments=unset`);
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto(`http://127.0.0.1:${port}/?compact`);
+  await page.getByRole("button", { name: "contract.docx", exact: true }).click();
+  await expect(page.getByRole("button", { name: "Download original", exact: true })).toBeVisible();
+  await expect(page.getByText("How should documents open?", { exact: true })).toHaveCount(0);
+  await page.setViewportSize({ width: 1100, height: 1000 });
+  await page.goto(`http://127.0.0.1:${port}/?width=320`);
+  await showDocuments(page);
+  await page.getByRole("button", { name: /^contract\.docx, / }).click();
+  await expect(page.getByText("How should documents open?", { exact: true })).toBeVisible();
+  for (const name of ["Side by side, next to the chat", "Full view, in its own tab", "Decide for me (Auto)", "Open in tab"]) {
+    const box = await page.getByRole("button", { name, exact: true }).boundingBox();
+    expect(box.x + box.width, name).toBeLessThanOrEqual(320 + 8);
+  }
+  expect(await page.evaluate(() => document.querySelector("main").scrollWidth)).toBe(320);
+  await page.screenshot({ path: `${shots}/harness-open-chooser.png` });
+  await page.getByRole("button", { name: "Side by side, next to the chat", exact: true }).click();
+  await expect(page.getByText("Documents open side by side from now on. Change it in Settings, Document viewer.", { exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "OK", exact: true }).click();
+  await expect(page.getByText(/^Documents open side by side/)).toHaveCount(0);
+  await page.goto(`http://127.0.0.1:${port}`);
+  await expect(page.getByRole("button", { name: "Download original", exact: true })).toBeVisible();
+  await expect(page.getByText("How should documents open?", { exact: true })).toHaveCount(0);
+  // Phones always open the document screen. On a wide window Side by side shows the document in Documents in
+  // the explorer, and Auto does from a 1,100 pt window.
+  const reportPath = "reports/quarterly-report-with-a-long-file-name.pdf";
+  const besideChat = { id: "documents", workspaceId: "workspace", location: "explorer" };
+  const openFromCard = async (viewport, url = `http://127.0.0.1:${port}`) => {
+    await page.setViewportSize(viewport);
+    await page.goto(url);
+    await page.getByRole("button", { name: "Turn card", exact: true }).click();
+    await page.getByRole("button", { name: pdfRow }).click();
+  };
+  const opened = () => page.evaluate(() => ({ screen: window.__openedScreen?.params?.path, panel: window.__openedPanel }));
+  await openFromCard({ width: 390, height: 844 }, `http://127.0.0.1:${port}/?compact`);
+  await expect(page.getByText("Document 1 of 4", { exact: true })).toBeVisible();
+  expect(await opened()).toEqual({ screen: reportPath, panel: undefined });
+  await openFromCard({ width: 1100, height: 1000 });
+  await expect.poll(opened).toEqual({ screen: undefined, panel: besideChat });
+  await page.getByRole("button", { name: "Documents", exact: true }).click();
+  await expect(page.locator("main").getByLabel(reportPath, { exact: true })).toBeVisible();
+  await expect(page.getByText("Document 1 of 4", { exact: true })).toBeVisible();
+  await page.screenshot({ path: `${shots}/harness-side-by-side.png` });
+  await fetch(`http://127.0.0.1:${port}/settings?openDocuments=auto`);
+  await openFromCard({ width: 1099, height: 1000 });
+  await expect.poll(opened).toEqual({ screen: reportPath, panel: undefined });
+  await openFromCard({ width: 1100, height: 1000 });
+  await expect.poll(opened).toEqual({ screen: undefined, panel: besideChat });
   expect(failures).toEqual([]);
-  console.log("Browser checks passed: persisted page/zoom/sheet, reset, scoped find shortcut, PDF/Word/grid find navigation, Word table fills its card, cell inspector, record cards, bounded issue check, original-file download bytes, WAV decoding/playback, WebM audio-track playback, visible media/animation/download loading with cancel and navigation, stale-query/cancel/slow-position races, PDF page map (visible-first, at most two thumbnail requests, current page marked, open page, close stops requests), page pins (label, revisit after reopen, may need checking after rewrite, confirm, remove), review marks (explicit only, one button name in both states, Documents status, Needs review and New filters, rewrite race), Documents times read again on focus, New cleared by opening until the file changes, first-run tips (Next, Skip, Done, kept dismissed after reload, reopen, phone fit), review notes (collect, edit, preview, copy, busy preselected agent, stale, send), phone toolbar fit, JSON Lines (named columns, full value and copy, record JSON, invalid-line issues, find), turn card settings link (desktop, 390 px fit, fallback hint), turn card thumbnails, Opened pill and document stepper (desktop, phone row, per-document reset), turn card folder rows (collapsed checkout and new folder, Show and Hide under one name with aria-expanded, thumbnails and stepper only once shown, phone fit), kind colors and their setting, filter chip icons (status and type glyphs, hidden from screen readers, phone scroll, sidebar fit), view switch (beside search, kept per layout class, last press wins over a late answer, phone fit), Details (columns, phone rows), Previews (tiles with page count, rows for other kinds, sidebar rows, phone columns), Tree (folders first, counts, folder chains that stay open when a file splits them, tree items with levels, toggle, Space on rows, Expand all and Collapse all, search opens matches, folder siblings for the stepper, kept per layout class, sidebar row, phone fit), empty Documents saying what the scan did not reach.");
+  console.log("Browser checks passed: persisted page/zoom/sheet, reset, scoped find shortcut, PDF/Word/grid find navigation, Word table fills its card, cell inspector, record cards, bounded issue check, original-file download bytes, WAV decoding/playback, WebM audio-track playback, visible media/animation/download loading with cancel and navigation, stale-query/cancel/slow-position races, PDF page map (visible-first, at most two thumbnail requests, current page marked, open page, close stops requests), page pins (label, revisit after reopen, may need checking after rewrite, confirm, remove), review marks (explicit only, one button name in both states, Documents status, Needs review and New filters, rewrite race), Documents times read again on focus, New cleared by opening until the file changes, first-run tips (Next, Skip, Done, kept dismissed after reload, reopen, phone fit), review notes (collect, edit, preview, copy, busy preselected agent, stale, send), phone toolbar fit, JSON Lines (named columns, full value and copy, record JSON, invalid-line issues, find), turn card settings link (desktop, 390 px fit, fallback hint), turn card thumbnails, Opened pill and document stepper (desktop, phone row, per-document reset), turn card folder rows (collapsed checkout and new folder, Show and Hide under one name with aria-expanded, thumbnails and stepper only once shown, phone fit), kind colors and their setting, filter chip icons (status and type glyphs, hidden from screen readers, phone scroll, sidebar fit), view switch (beside search, kept per layout class, last press wins over a late answer, phone fit), Details (columns, phone rows), Previews (tiles with page count, rows for other kinds, sidebar rows, phone columns), Tree (folders first, counts, folder chains that stay open when a file splits them, tree items with levels, toggle, Space on rows, Expand all and Collapse all, search opens matches, folder siblings for the stepper, PDFs read in Documents with the stepper and in sidebar width, kept per layout class, sidebar row, phone fit), empty Documents saying what the scan did not reach, every kind read in Documents (sidebar fit, Previous and Next across kinds, Open in tab with folder siblings, Back keeps search, type filter, New and Needs review, collapsed headings and scroll), first-open chooser (wide only, 320 pt fit, saved, asked once), open routing (phones full screen, Side by side in the explorer, Auto from 1,100 pt), one toolbar row at 320 pt.");
 } catch (error) { await saveFailure(); throw timedOut ? new Error(overLimit, { cause: error }) : error; } finally { await cleanUp(); }

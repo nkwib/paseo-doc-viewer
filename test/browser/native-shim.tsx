@@ -34,7 +34,11 @@ export const View = forwardRef<any, any>(function View({ children, style, onLayo
   return <div ref={(value) => { node.current = value; if (value) { (value as any).measure = (callback: any) => callback(0, 0, FRAME_WIDTH, 540, 0, 0); (value as any).measureInWindow = (callback: any) => callback(0, 0, FRAME_WIDTH, 540); } if (typeof ref === "function") ref(value); else if (ref) ref.current = value; }}
     style={{ display: "flex", flexDirection: "column", minHeight: 0, minWidth: 0, flexShrink: 0, boxSizing: "border-box", position: "relative", pointerEvents, ...css(style) }} aria-label={accessibilityLabel} role={accessibilityRole} aria-hidden={ariaHidden || undefined}>{children}</div>;
 });
-export const Text = ({ children, style, accessibilityLabel, onPress, accessibilityRole, onLayout }: any) => {
+// React Native Web 0.21's styles for numberOfLines: one line ends in an ellipsis, more lines clamp.
+const ONE_LINE = { maxWidth: "100%", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", wordWrap: "normal" };
+const lines = (count?: number) => count === 1 ? ONE_LINE
+  : count && count > 1 ? { display: "-webkit-box", maxWidth: "100%", overflow: "clip", textOverflow: "ellipsis", WebkitBoxOrient: "vertical", WebkitLineClamp: count } : {};
+export const Text = ({ children, style, accessibilityLabel, onPress, accessibilityRole, onLayout, numberOfLines }: any) => {
   const node = useRef<HTMLSpanElement>(null);
   useEffect(() => {
     const element = node.current;
@@ -43,7 +47,7 @@ export const Text = ({ children, style, accessibilityLabel, onPress, accessibili
     onLayout({ nativeEvent: { layout: { x: 0, y, width: element.offsetWidth, height: element.offsetHeight } } });
   });
   // React Native keeps line breaks in text.
-  return <span ref={node} style={{ whiteSpace: "pre-wrap", ...css(style) }} aria-label={accessibilityLabel} onClick={onPress} role={accessibilityRole}>{children}</span>;
+  return <span ref={node} style={{ whiteSpace: "pre-wrap", ...lines(numberOfLines), ...css(style) }} aria-label={accessibilityLabel} onClick={onPress} role={accessibilityRole}>{children}</span>;
 };
 // A focusable div with the role. Like React Native Web 0.21, state reaches the DOM only through aria-* props
 // (accessibilityState is ignored), `role` wins over accessibilityRole, and Enter presses but Space presses only a

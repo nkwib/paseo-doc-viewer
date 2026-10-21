@@ -2,7 +2,7 @@ import { type PluginOpenScreenInput, type PluginWorkspacePanelProps, useRpc } fr
 import { FlatList, Icon, ScrollView, TextInput } from "@getpaseo/plugin/client/react-native";
 import type { PluginTheme } from "@getpaseo/plugin";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { AppState, type LayoutChangeEvent, PixelRatio, Pressable, Text, View } from "react-native";
 import type { DocumentView } from "../shared/documents-view";
 import { layoutClass } from "../shared/viewer-state";
@@ -20,10 +20,12 @@ import { ALL_COLLAPSED, ALL_EXPANDED, folderFiles, folderTree, holdOpenChains, i
 import { type PreviewRow, previewRowKey, previewRows, visibleTilePaths } from "./previews";
 import { useDocumentView, VIEW_OPTIONS } from "./documents-view";
 import { recentQueryOptions } from "./queries";
-import { type BrowseRow, browseRows, documentScreen, emptyDetail, entryLabel, fetchRecent, filterChips, noMatchDetail, type RecentEntry, recentCuts, truncationNotice, unsupportedDetail } from "./recent";
+import { type BrowseRow, browseRows, DOCUMENT_SCREEN_ID, documentScreen, emptyDetail, entryLabel, fetchRecent, filterChips, noMatchDetail, type RecentEntry, recentCuts, truncationNotice, unsupportedDetail } from "./recent";
 import { siblingWindow } from "./siblings";
 import { TipsCard, TipsLink, useTips } from "./tips-card";
-import { ErrorState, LoadingState, makeStyles, MessageState, StatusPill, statusIcon, type Styles } from "./ui";
+import { ErrorState, LoadingState, makeStyles, MessageState, StatusPill, statusIcon, type Styles, ToolbarButton } from "./ui";
+import { DocumentScreen } from "./document-screen";
+import type { PanelReader, PanelSelection } from "./panel-reader";
 import { useBottomInset } from "./use-bottom-inset";
 import { useKindPalette } from "./use-kind-colors";
 import { documentsVisits } from "./visits";
@@ -32,6 +34,8 @@ import { onWindowFocus } from "./web";
 const SEARCH_DEBOUNCE_MS = 250;
 const SWITCH_LABELS_MIN_WIDTH = 600;
 const SWITCH_INLINE_MIN_WIDTH = 360;
+// Narrower than this, as in the explorer, the reader keeps one toolbar row with the rest behind More.
+const READER_COMPACT_MAX_WIDTH = 480;
 const NO_GROUPS: ReadonlySet<DocumentGroup> = new Set();
 const VIEWABILITY = { itemVisiblePercentThreshold: 1 };
 const CLOCK_TICK_MS = 60_000;
@@ -65,16 +69,65 @@ function useDebounced<T>(value: T, delayMs: number): T {
   return debounced;
 }
 
-export function createDocumentsPanel(openScreen: (input: PluginOpenScreenInput) => void) {
+// Documents reads every file in place; the list stays mounted under the reader, so Back finds its filters,
+// view, folders and scroll as they were. Open in tab hands the document to the standalone screen.
+export function createDocumentsPanel(openTab: (input: PluginOpenScreenInput) => void, reader: PanelReader) {
   return function DocumentsPanel(props: PluginWorkspacePanelProps) {
     const { ref, onLayout, bottomInset } = useBottomInset();
     const styles = useMemo(() => makeStyles(props.theme, props.layout.compact, bottomInset), [props.theme, props.layout.compact, bottomInset]);
+    const selection = useSyncExternalStore(reader.subscribe, () => reader.get(props.workspaceId), () => null);
+    const [width, setWidth] = useState(0);
+    const self = useRef({}).current;
+    useEffect(() => () => reader.unmounted(self), [self]);
+    const narrow = width > 0 && width < READER_COMPACT_MAX_WIDTH;
+    const readerLayout = narrow ? { ...props.layout, compact: true } : props.layout;
+    // Mounted on first show only, so a document opened from a turn card does not count as a Documents visit.
+    const listShown = useRef(false);
+    if (!selection) listShown.current = true;
+    const open = useCallback((input: PluginOpenScreenInput) => {
+      const path = input.params?.path;
+      if (path) reader.select(props.workspaceId, { path, siblings: input.params?.siblings });
+    }, [props.workspaceId]);
+    const queryClient = useQueryClient();
+    // Marks set in the reader (reviewed, opened) show at once, not at the list's next poll.
+    const back = () => {
+      reader.select(props.workspaceId, null);
+      void queryClient.invalidateQueries({ queryKey: ["docs.recent", props.workspaceId] });
+    };
     return (
-      <View ref={ref} onLayout={onLayout} style={{ flex: 1 }}>
-        <DocumentsList {...props} styles={styles} openScreen={openScreen} />
+      <View ref={ref} style={{ flex: 1 }} onLayout={(event: LayoutChangeEvent) => {
+        onLayout();
+        setWidth(event.nativeEvent.layout.width);
+        reader.measured(self, props.workspaceId, event.nativeEvent.layout.width);
+      }}>
+        {listShown.current ? (
+          <View style={{ flex: 1, display: selection ? "none" : "flex" }}>
+            <DocumentsList {...props} styles={styles} openScreen={open} />
+          </View>
+        ) : null}
+        {selection ? (
+          <>
+            <View style={styles.toolbar}>
+              <ToolbarButton theme={props.theme} styles={styles} icon="ChevronLeft" label="Documents"
+                accessibilityLabel="Back to documents" onPress={back} />
+              <Text style={[styles.text, { flex: 1, minWidth: 0 }]} numberOfLines={1} accessibilityLabel={selection.path}>
+                {baseName(selection.path)}
+                {parentDir(selection.path) ? <Text style={styles.muted}>{`  ${parentDir(selection.path)}`}</Text> : null}
+              </Text>
+              <ToolbarButton theme={props.theme} styles={styles} icon="ExternalLink" label={narrow || props.layout.compact ? undefined : "Open in tab"}
+                accessibilityLabel="Open in tab" onPress={() => openTab({ screenId: DOCUMENT_SCREEN_ID, params: selectionParams(props.workspaceId, selection) })} />
+            </View>
+            <DocumentScreen key={`${props.workspaceId}\0${selection.path}`} host={props.host} theme={props.theme} layout={readerLayout} phone={props.layout.compact} openDocument={open}
+              params={selectionParams(props.workspaceId, selection)} />
+          </>
+        ) : null}
       </View>
     );
   };
+}
+
+function selectionParams(workspaceId: string, { path, siblings }: PanelSelection): Record<string, string> {
+  return siblings ? { workspaceId, path, siblings } : { workspaceId, path };
 }
 
 // The previous time Documents was opened here, or null the first time; undefined until known.
@@ -112,7 +165,8 @@ function DocumentsList({
   const [width, setWidth] = useState(0);
   // Every return below measures: react-native-web starts observing a View only if it mounts with onLayout,
   // and React keeps the loading state's View for the list.
-  const onLayout = (event: LayoutChangeEvent) => setWidth(event.nativeEvent.layout.width);
+  // Hidden under the reader it measures 0; keeping the last width keeps its rows, and so its scroll.
+  const onLayout = (event: LayoutChangeEvent) => { if (event.nativeEvent.layout.width > 0) setWidth(event.nativeEvent.layout.width); };
   const searched = useDebounced(query, SEARCH_DEBOUNCE_MS);
   const newSince = useLastVisit(host?.id, workspaceId);
   const listRecent = useRpc(docsRecentRpc);
@@ -174,7 +228,12 @@ function DocumentsList({
   }).current;
   const readThumbnail = useRpc(docThumbnailRpc);
   const preview = usePreviews(workspaceId, tileEntries, grid, visible, readThumbnail);
-  const openPath = useCallback((path: string) => openScreen(documentScreen(workspaceId, path)), [openScreen, workspaceId]);
+  // Previous and Next step through the files in the order shown.
+  const shownPaths = useMemo(() => rows.flatMap((row) => (row.type === "entry" ? [row.entry.path] : [])), [rows]);
+  const openPath = useCallback(
+    (path: string) => openScreen(documentScreen(workspaceId, path, siblingWindow(shownPaths, path))),
+    [openScreen, workspaceId, shownPaths],
+  );
   const now = useClock();
   const tips = useTips();
   const readSettings = useRpc(viewerSettingsRpc.read);
@@ -384,7 +443,7 @@ function DocumentsList({
                 entry={item.entry}
                 palette={palette}
                 now={now}
-                onPress={() => openScreen(documentScreen(workspaceId, item.entry.path))}
+                onPress={() => openPath(item.entry.path)}
               />
             ) : (
               <EntryRow
@@ -393,7 +452,7 @@ function DocumentsList({
                 entry={item.entry}
                 palette={palette}
                 now={now}
-                onPress={() => openScreen(documentScreen(workspaceId, item.entry.path))}
+                onPress={() => openPath(item.entry.path)}
               />
             )
           }

@@ -59,9 +59,16 @@ handlers.set("doc.search", async ({ path, password, query, cursor, searchId }) =
   searchDocument({ root, path, password }, query, cursor, 1, searchId && searchGenerations.begin(searchId.session, searchId.generation)));
 // A five-row cap makes the issue check pause, so the client must show coverage and continue on request.
 handlers.set("doc.issues", async ({ path, cursor }) => scanIssues({ root, path }, cursor, { budgetMs: 60_000, maxRows: 5, maxIssues: 200 }));
-let settingsValues = { turnCards: true, kindColors: true };
-handlers.set(viewerSettingsRpc.read.name, async () => ({ status: "ready", revision: "1", values: settingsValues }));
-const contracts = [...DOCUMENT_RPCS, viewerSettingsRpc.read];
+// The open choice starts answered, so the first-open chooser shows only where a check asks for it.
+let settingsValues: Record<string, unknown> = { turnCards: true, kindColors: true, openDocuments: "full" };
+let settingsRevision = 1;
+handlers.set(viewerSettingsRpc.read.name, async () => ({ status: "ready", revision: String(settingsRevision), values: settingsValues }));
+handlers.set(viewerSettingsRpc.write.name, async ({ revision, values }) => {
+  if (revision !== String(settingsRevision)) return { status: "conflict", error: "stale" };
+  settingsValues = values;
+  return { status: "saved", revision: String(++settingsRevision), values };
+});
+const contracts = [...DOCUMENT_RPCS, viewerSettingsRpc.read, viewerSettingsRpc.write];
 const paseo = { workspaces: { list: async () => ({ entries: [{ id: "workspace", workspaceDirectory: root }], pageInfo: { hasMore: false } }) } };
 const turnFile = (files: readonly (readonly string[])[]) =>
   files.map(([path, kind, status]) => { const info = statSync(join(root, path!)); return { path, kind, status, size: info.size, revision: revisionOf(info) }; });
@@ -69,7 +76,9 @@ const server = createServer(async (request, response) => {
   if (request.url === "/bundle.js") { response.setHeader("Content-Type", "application/javascript"); response.end(readFileSync(join(generated, "app.js"))); return; }
   // Simulates an agent rewriting a file: a new modified time gives it a new revision.
   if (request.url === "/touch/statement.pdf") { const later = new Date(Date.now() + 60_000); utimesSync(join(root, "statement.pdf"), later, later); response.end("ok"); return; }
-  if (request.url?.startsWith("/settings?")) { settingsValues = { ...settingsValues, kindColors: !request.url.endsWith("kindColors=0") }; response.end("ok"); return; }
+  const openDocuments = request.url?.match(/^\/settings\?openDocuments=(\w+)$/)?.[1];
+  if (openDocuments) { const { openDocuments: _, ...rest } = settingsValues; settingsValues = openDocuments === "unset" ? rest : { ...rest, openDocuments }; settingsRevision++; response.end("ok"); return; }
+  if (request.url?.startsWith("/settings?")) { settingsValues = { ...settingsValues, kindColors: !request.url.endsWith("kindColors=0") }; settingsRevision++; response.end("ok"); return; }
   if (request.url === "/turn-docs") {
     response.setHeader("Content-Type", "application/json");
     response.end(JSON.stringify({ workspaceId: "workspace", startedAt: 0, endedAt: 1, outcome: "completed", partial: false, moreCount: 2, files: turnFile(turnFiles) }));

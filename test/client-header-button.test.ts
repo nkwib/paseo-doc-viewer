@@ -1,7 +1,6 @@
 import type { PluginButton, PluginClientContext, PluginHeaderButtonContribution } from "@getpaseo/plugin/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { addDocumentsHeaderButtons, HEADER_POLL_MAX_MS, HEADER_POLL_MS, TURN_RECHECK_MIN_MS } from "../client/header-button";
-import { DOCUMENTS_PANEL_ID } from "../client/recent";
 import { docsAnyRpc } from "../shared/rpc";
 
 beforeEach(() => vi.useFakeTimers());
@@ -20,12 +19,12 @@ function fakeClient() {
   let observer: Observer | null = null;
   let resolveList!: () => void;
   const release = vi.fn(async () => {});
+  const showDocuments = vi.fn();
   let agentObserver: { update(message: unknown): void } | null = null;
   const stopAgents = vi.fn(async () => void (agentObserver = null));
   const listed = new Promise<void>((resolve) => (resolveList = resolve));
   const client = {
     rpc: vi.fn(async (_contract: unknown, _request: unknown) => ({ found: true })),
-    openPanel: vi.fn(),
     addHeaderButton: vi.fn(({ workspaceId, button }: PluginHeaderButtonContribution) => {
       if (live.has(workspaceId)) throw new Error(`duplicate header button for ${workspaceId}`);
       live.set(workspaceId, button);
@@ -68,9 +67,9 @@ function fakeClient() {
     await vi.advanceTimersByTimeAsync(0);
   };
   return {
-    client: client as unknown as Pick<PluginClientContext, "paseo" | "rpc" | "addHeaderButton" | "openPanel">,
+    client: client as unknown as Pick<PluginClientContext, "paseo" | "rpc" | "addHeaderButton">,
     rpc: client.rpc,
-    openPanel: client.openPanel,
+    showDocuments,
     list: client.paseo.workspaces.list,
     live,
     release,
@@ -89,7 +88,7 @@ describe("Documents header button", () => {
   it("stays hidden for empty workspaces and follows document creation and deletion", async () => {
     const fake = fakeClient();
     fake.rpc.mockResolvedValue({ found: false });
-    const cleanup = addDocumentsHeaderButtons(fake.client);
+    const cleanup = addDocumentsHeaderButtons(fake.client, fake.showDocuments);
     await fake.settle();
     fake.observer()!.snapshot({ entries: [{ id: "ws-1" }] });
     await fake.settle();
@@ -116,7 +115,7 @@ describe("Documents header button", () => {
   it("backs off polling while a workspace keeps failing, then resumes the normal interval", async () => {
     const fake = fakeClient();
     fake.rpc.mockRejectedValue(new Error("unavailable"));
-    const cleanup = addDocumentsHeaderButtons(fake.client);
+    const cleanup = addDocumentsHeaderButtons(fake.client, fake.showDocuments);
     await fake.settle();
     fake.observer()!.snapshot({ entries: [{ id: "ws-1" }] });
     await fake.settle();
@@ -136,7 +135,7 @@ describe("Documents header button", () => {
     const fake = fakeClient();
     let resolve!: (result: { found: boolean }) => void;
     fake.rpc.mockImplementationOnce(() => new Promise((done) => (resolve = done)));
-    const cleanup = addDocumentsHeaderButtons(fake.client);
+    const cleanup = addDocumentsHeaderButtons(fake.client, fake.showDocuments);
     await fake.settle();
     fake.observer()!.snapshot({ entries: [{ id: "ws-1" }] });
     fake.observer()!.update(removal("ws-1"));
@@ -158,7 +157,7 @@ describe("Documents header button", () => {
 
   it("adds one Documents button to each nonempty workspace header, following the workspace list", async () => {
     const fake = fakeClient();
-    addDocumentsHeaderButtons(fake.client);
+    addDocumentsHeaderButtons(fake.client, fake.showDocuments);
     expect(fake.list).toHaveBeenCalledWith({ subscribe: {} });
     await fake.settle();
 
@@ -182,7 +181,7 @@ describe("Documents header button", () => {
     const fake = fakeClient();
     const pending: ((result: { found: boolean }) => void)[] = [];
     fake.rpc.mockImplementation(() => new Promise((done) => pending.push(done)));
-    const cleanup = addDocumentsHeaderButtons(fake.client);
+    const cleanup = addDocumentsHeaderButtons(fake.client, fake.showDocuments);
     await fake.settle();
     fake.observer()!.snapshot({ entries: ["ws-1", "ws-2", "ws-3", "ws-4", "ws-5"].map((id) => ({ id })) });
     await fake.settle();
@@ -197,9 +196,9 @@ describe("Documents header button", () => {
     cleanup();
   });
 
-  it("opens the Documents panel in that workspace", async () => {
+  it("shows Documents for that workspace", async () => {
     const fake = fakeClient();
-    addDocumentsHeaderButtons(fake.client);
+    addDocumentsHeaderButtons(fake.client, fake.showDocuments);
     await fake.settle();
     fake.observer()!.snapshot({ entries: [{ id: "ws-1" }] });
     await fake.settle();
@@ -207,12 +206,12 @@ describe("Documents header button", () => {
     expect(button).toMatchObject({ title: "Show documents", icon: "FileText", label: "Documents" });
     if (button.behavior.kind !== "action") throw new Error("expected an action button");
     await button.behavior.onPress();
-    expect(fake.openPanel).toHaveBeenCalledWith(DOCUMENTS_PANEL_ID, { workspaceId: "ws-1" });
+    expect(fake.showDocuments).toHaveBeenCalledWith("ws-1");
   });
 
   it("removes its buttons and releases the workspace subscription on cleanup", async () => {
     const fake = fakeClient();
-    const cleanup = addDocumentsHeaderButtons(fake.client);
+    const cleanup = addDocumentsHeaderButtons(fake.client, fake.showDocuments);
     await fake.settle();
     fake.observer()!.snapshot({ entries: [{ id: "ws-1" }] });
     await fake.settle();
@@ -224,7 +223,7 @@ describe("Documents header button", () => {
 
   it("releases a subscription that arrives after cleanup without adding buttons", async () => {
     const fake = fakeClient();
-    const cleanup = addDocumentsHeaderButtons(fake.client);
+    const cleanup = addDocumentsHeaderButtons(fake.client, fake.showDocuments);
     cleanup();
     await fake.settle();
     expect(fake.release).toHaveBeenCalled();
@@ -236,7 +235,7 @@ describe("Documents header button", () => {
     const fake = fakeClient();
     fake.list.mockRejectedValueOnce(new Error("socket closed"));
     const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
-    expect(() => addDocumentsHeaderButtons(fake.client)).not.toThrow();
+    expect(() => addDocumentsHeaderButtons(fake.client, fake.showDocuments)).not.toThrow();
     await vi.advanceTimersByTimeAsync(0);
     expect(fake.live.size).toBe(0);
     warn.mockRestore();
@@ -249,7 +248,7 @@ describe("Documents header button after an agent turn", () => {
   async function hiddenWorkspace() {
     const fake = fakeClient();
     fake.rpc.mockResolvedValue({ found: false });
-    const cleanup = addDocumentsHeaderButtons(fake.client);
+    const cleanup = addDocumentsHeaderButtons(fake.client, fake.showDocuments);
     await fake.settle();
     fake.observer()!.snapshot({ entries: [{ id: "ws-1" }] });
     await fake.settle();
@@ -282,7 +281,7 @@ describe("Documents header button after an agent turn", () => {
     const fake = fakeClient();
     delete (fake.client.paseo as { agents?: unknown }).agents;
     const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
-    const cleanup = addDocumentsHeaderButtons(fake.client);
+    const cleanup = addDocumentsHeaderButtons(fake.client, fake.showDocuments);
     await fake.settle();
     fake.observer()!.snapshot({ entries: [{ id: "ws-1" }] });
     await fake.settle();

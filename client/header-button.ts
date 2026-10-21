@@ -1,5 +1,4 @@
 import type { PluginButtonRegistration, PluginClientContext } from "@getpaseo/plugin/client";
-import { DOCUMENTS_PANEL_ID } from "./recent";
 import { docsAnyRpc } from "../shared/rpc";
 
 // FileText reads as "documents" at header size; FileStack looked like a copy button on phones.
@@ -14,7 +13,7 @@ const MAX_CONCURRENT_PROBES = 2;
 // Busy workspaces end many turns; a workspace with no documents is scanned at most this often for them.
 export const TURN_RECHECK_MIN_MS = 10_000;
 
-type HeaderButtonHost = Pick<PluginClientContext, "paseo" | "rpc" | "addHeaderButton" | "openPanel">;
+type HeaderButtonHost = Pick<PluginClientContext, "paseo" | "rpc" | "addHeaderButton">;
 type AgentUpdate =
   | { kind: "upsert"; agent: { id: string; status: string; workspaceId?: string | null } }
   | { kind: "remove"; agentId: string };
@@ -28,7 +27,7 @@ interface WorkspaceProbe {
   refresh(): Promise<void>;
 }
 
-export function addDocumentsHeaderButtons(client: HeaderButtonHost): () => void {
+export function addDocumentsHeaderButtons(client: HeaderButtonHost, showDocuments: (workspaceId: string) => void): () => void {
   const buttons = new Map<string, PluginButtonRegistration>();
   const workspaces = new Map<string, WorkspaceProbe>();
   let stopped = false;
@@ -56,7 +55,7 @@ export function addDocumentsHeaderButtons(client: HeaderButtonHost): () => void 
         title: "Show documents",
         icon: "FileText",
         label: "Documents",
-        behavior: { kind: "action", onPress: () => client.openPanel(DOCUMENTS_PANEL_ID, { workspaceId }) },
+        behavior: { kind: "action", onPress: () => showDocuments(workspaceId) },
       },
     });
     buttons.set(workspaceId, registration);

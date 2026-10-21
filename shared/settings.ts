@@ -9,6 +9,8 @@ export const viewerSettings = defineSettings({
     // A timeline card per agent turn listing the documents that changed while it ran.
     turnCards: z.boolean().default(true),
     kindColors: z.boolean().default(true),
+    // Where a document opens on a wide layout; unset until the first-open chooser is answered, and read as auto.
+    openDocuments: z.enum(["auto", "side", "full"]).optional(),
   }),
 });
 

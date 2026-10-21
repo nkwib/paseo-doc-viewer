@@ -7,7 +7,7 @@ import { useRpc } from "@getpaseo/plugin/client";
 import { copyText, useToast } from "@getpaseo/plugin/client/react-native";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { memo, useEffect, useRef, useState } from "react";
-import { ActivityIndicator, Image, type ImageStyle, type LayoutChangeEvent, Platform, Pressable, ScrollView, Text, View } from "react-native";
+import { ActivityIndicator, Image, type ImageStyle, type LayoutChangeEvent, Platform, ScrollView, Text, View } from "react-native";
 import { docPageRpc, docTextRpc, mediaChunkRpc, type DocPageOutput, type DocTextOutput } from "../shared/rpc";
 import { type ImageAnimation, animationFormat, loadAnimation } from "./animation";
 import {
@@ -26,6 +26,7 @@ import {
   zoomLabel,
 } from "./paging";
 import { PageMap } from "./page-map";
+import { PageNavigation } from "./page-navigation";
 import { animationQueryKey, pageQueryKey, textQueryKey } from "./queries";
 import { ErrorState, LoadingState, type Styles, ToolbarButton } from "./ui";
 import { useFitWidth } from "./use-fit-width";
@@ -51,7 +52,6 @@ export interface PageViewerProps {
   theme: PluginTheme;
   styles: Styles;
   onActivePage?: (index: number) => void;
-  onOpenPageMap?: () => void;
 }
 
 const NOUN = { pdf: "Page", pptx: "Slide", image: "Image" } as const;
@@ -64,7 +64,7 @@ function dataUri(image: EncodedImage): string {
   return `data:${image.mimeType};base64,${image.data}`;
 }
 
-export function PageViewer({ workspaceId, path, revision, kind, count, password, animation, theme, styles, initialPosition, onPositionChange, navigation, searchMatches, pageMap, onActivePage, onOpenPageMap }: PageViewerProps) {
+export function PageViewer({ workspaceId, path, revision, kind, count, password, animation, theme, styles, initialPosition, onPositionChange, navigation, searchMatches, pageMap, onActivePage }: PageViewerProps) {
   const fetchPage = useRpc(docPageRpc);
   const fetchText = useRpc(docTextRpc);
   const fetchChunk = useRpc(mediaChunkRpc);
@@ -175,9 +175,11 @@ export function PageViewer({ workspaceId, path, revision, kind, count, password,
   return (
     <View style={styles.screen}>
       {count > 0 ? (
-        <View style={styles.toolbar}>
-          {paged ? (
-            <PageStrip active={active} count={count} noun={noun} theme={theme} styles={styles} onChange={setIndex} onOpenMap={onOpenPageMap} />
+        <View style={[styles.toolbar, styles.compact ? { flexWrap: "wrap", rowGap: 4 } : null]}>
+          {kind === "pdf" ? (
+            <PageNavigation active={active} count={count} theme={theme} styles={styles} onChange={setIndex} />
+          ) : paged ? (
+            <PageStrip active={active} count={count} noun={noun} theme={theme} styles={styles} onChange={setIndex} />
           ) : null}
           <View style={styles.toolbarSpacer} />
           <View style={{ width: 16, alignItems: "center" }}>
@@ -293,10 +295,10 @@ export function PageViewer({ workspaceId, path, revision, kind, count, password,
   );
 }
 
-// Phones show `< n / N >`, with n / N opening the page map. Wider layouts keep the page chips
-// between previous and next, and scroll the current chip into view.
-function PageStrip({ active, count, noun, theme, styles, onChange, onOpenMap }: {
-  active: number; count: number; noun: string; theme: PluginTheme; styles: Styles; onChange(index: number): void; onOpenMap?: () => void;
+// Phones show `< n / N >`. Wider layouts keep the page chips between previous and next, and scroll the
+// current chip into view.
+function PageStrip({ active, count, noun, theme, styles, onChange }: {
+  active: number; count: number; noun: string; theme: PluginTheme; styles: Styles; onChange(index: number): void;
 }) {
   const strip = useRef<ScrollView>(null);
   const offsets = useRef(new Map<number, number>());
@@ -310,14 +312,7 @@ function PageStrip({ active, count, noun, theme, styles, onChange, onOpenMap }: 
     return (
       <View style={[styles.toolbarGroup, { gap: 4 }]}>
         {previous}
-        {onOpenMap ? (
-          <Pressable accessibilityRole="button" accessibilityLabel={`${noun} ${active + 1} of ${count}, open page map`} onPress={onOpenMap} hitSlop={styles.hitSlop}
-            style={{ minWidth: 44, height: styles.controlSize, alignItems: "center", justifyContent: "center", paddingHorizontal: 4 }}>
-            <Text style={[styles.label, { color: theme.colors.foreground }]}>{label}</Text>
-          </Pressable>
-        ) : (
-          <View style={{ minWidth: 44, alignItems: "center" }}><Text style={[styles.label, { color: theme.colors.foreground }]}>{label}</Text></View>
-        )}
+        <View style={{ minWidth: 44, alignItems: "center" }}><Text style={[styles.label, { color: theme.colors.foreground }]}>{label}</Text></View>
         {next}
       </View>
     );

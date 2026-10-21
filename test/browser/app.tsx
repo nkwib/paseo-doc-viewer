@@ -4,8 +4,11 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { DocumentScreen } from "../../client/document-screen";
 import { createDocumentsPanel } from "../../client/documents-panel";
 import { setHostClient } from "../../client/host-client";
+import { createDocumentRouting } from "../../client/open-target";
+import { createPanelReader } from "../../client/panel-reader";
 import { ReviewScreen } from "../../client/review-screen";
 import { createTurnDocsCard, legacyTurnDocsCard } from "../../client/turn-docs-card";
+import { viewerSettingsRpc } from "../../shared/settings";
 import { callRpc, recordCall } from "./plugin-shim";
 const query = new QueryClient({ defaultOptions: { queries: { retry: false } } });
 const theme = { colors: { foreground: "#e5e7eb", foregroundMuted: "#9ca3af", surface0: "#111827", surface1: "#1f2937", surface2: "#374151", border: "#4b5563", accent: "#6366f1", accentForeground: "#fff", statusDanger: "#f87171", statusWarning: "#fbbf24", statusSuccess: "#34d399" } };
@@ -44,9 +47,17 @@ const openedSettings: string[] = [];
 (window as any).__openedSettings = openedSettings;
 type OpenScreenInput = { screenId: string; params?: Record<string, string> };
 let openScreen = (input: OpenScreenInput) => { (window as any).__openedScreen = input; };
+// Turn cards route like the plugin, with the page as the window. Opening Documents is only recorded:
+// the Documents button shows it, with the document chosen for it.
+const reader = createPanelReader();
+const routing = createDocumentRouting({
+  openScreen: (input) => openScreen(input),
+  openPanel: (id, options) => { (window as any).__openedPanel = { id, ...options }; },
+  readSettings: () => callRpc(viewerSettingsRpc.read, {}) as Promise<any>,
+  windowWidth: () => window.innerWidth,
+}, reader);
 const TurnCard = createTurnDocsCard({
-  openScreen: (input: OpenScreenInput) => openScreen(input),
-  openPanel: (id: string) => { (window as any).__openedPanel = id; },
+  ...routing,
   openSettings: (id: string) => { if (settingsFail) throw new Error("No settings screen"); openedSettings.push(id); },
   rpc: callRpc,
 } as any);
@@ -60,7 +71,7 @@ function App() {
   useEffect(() => { void fetch("/turn-docs-checkout").then((response) => response.json()).then(setCheckoutDocs); }, []);
   const [opened, setOpened] = useState(true);
   const [browsing, setBrowsing] = useState(false);
-  const [Panel] = useState(() => createDocumentsPanel((input) => { (window as any).__openedScreen = input; setPath(input.params!.path!); setSiblings(input.params!.siblings); setBrowsing(false); setOpened(true); }));
+  const [Panel] = useState(() => createDocumentsPanel((input) => { (window as any).__openedScreen = input; setPath(input.params!.path!); setSiblings(input.params!.siblings); setBrowsing(false); setOpened(true); }, reader));
   const [screen, setScreen] = useState("document");
   useEffect(() => {
     openScreen = (input) => {
