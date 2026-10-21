@@ -6,6 +6,8 @@ import { createPanelReader } from "./client/panel-reader";
 import { DocumentScreen } from "./client/document-screen";
 import { documentTitle } from "./client/format";
 import { createDocumentsPanel } from "./client/documents-panel";
+import { addFilePanel } from "./client/file-panel";
+import { FilePanelReader } from "./client/file-panel-reader";
 import { addDocumentsHeaderButtons } from "./client/header-button";
 import { setHostClient } from "./client/host-client";
 import { DOCUMENT_SCREEN_ID, DOCUMENTS_PANEL_ID, openByPath, openMostRecent, SETTINGS_SCREEN_ID } from "./client/recent";
@@ -69,6 +71,7 @@ export default function contribute(client: PluginClientContext) {
     }),
     ...turnDocsRenderers(client, openDocument, showDocuments),
     client.addSettingsScreen({ id: SETTINGS_SCREEN_ID, title: "Document viewer", icon: "FileText", Component: ViewerSettings }),
+    addFilePanel(client, FilePanelReader),
   ];
   return () => {
     setHostClient(null);

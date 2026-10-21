@@ -1,4 +1,11 @@
 export const DETAILS_FOLDER_MIN_WIDTH = 640;
+// Narrower than this, as in the explorer or a split pane, the reader keeps one toolbar row with the rest behind More.
+const READER_COMPACT_MAX_WIDTH = 480;
+
+// The layout a reader of the measured width gets; 0 is not measured yet.
+export function readerLayout<Layout extends { compact: boolean }>(layout: Layout, width: number): Layout {
+  return width > 0 && width < READER_COMPACT_MAX_WIDTH ? { ...layout, compact: true } : layout;
+}
 const DETAILS_SIZE_MIN_WIDTH = 400;
 
 export interface DetailsColumns {
