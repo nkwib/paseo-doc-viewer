@@ -3,6 +3,8 @@ import { createRoot } from "react-dom/client";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { DocumentScreen } from "../../client/document-screen";
 import { createDocumentsPanel } from "../../client/documents-panel";
+import { addFilePanel, type FilePanelContribution } from "../../client/file-panel";
+import { FilePanelReader } from "../../client/file-panel-reader";
 import { setHostClient } from "../../client/host-client";
 import { createDocumentRouting } from "../../client/open-target";
 import { createPanelReader } from "../../client/panel-reader";
@@ -62,6 +64,22 @@ const TurnCard = createTurnDocsCard({
   rpc: callRpc,
 } as any);
 const LegacyTurnCard = legacyTurnDocsCard(TurnCard);
+// ?file=<absolute path> mounts the panel the plugin registers with addFilePanel, as a Paseo 0.13.0 file tab
+// does. The viewer reads through its own RPCs, so every call on the file handle or the tab is recorded.
+const fileCalls: string[] = [];
+(window as any).__fileCalls = fileCalls;
+function pluginFile(path: string) {
+  const name = path.slice(path.lastIndexOf("/") + 1);
+  const unused = (method: string) => () => { fileCalls.push(method); return Promise.reject(new Error(`${method} is not used by the viewer`)); };
+  return { path, name, extension: name.slice(name.lastIndexOf(".") + 1).toLowerCase(), size: 0, modifiedAt: "", mimeType: "application/octet-stream",
+    readText: unused("readText"), readBytes: unused("readBytes"), url: unused("url"), writeText: unused("writeText"), writeBytes: unused("writeBytes"),
+    watch: () => { fileCalls.push("watch"); return () => {}; } };
+}
+const filePath = new URLSearchParams(location.search).get("file");
+const file = filePath ? pluginFile(filePath) : null;
+const tab = { setModified: (modified: boolean) => fileCalls.push(`setModified(${modified})`), state: undefined, setState: () => fileCalls.push("setState") };
+let filePanel: FilePanelContribution | null = null;
+addFilePanel({ addFilePanel: (contribution: FilePanelContribution) => { filePanel = contribution; return () => {}; } } as any, FilePanelReader);
 function App() {
   const [path, setPath] = useState("statement.pdf");
   const [siblings, setSiblings] = useState<string | undefined>(undefined);
@@ -89,7 +107,8 @@ function App() {
       <button onClick={() => setScreen("turn-card")}>Turn card</button>
       <button onClick={() => setScreen("checkout-card")}>Checkout card</button>
       <button onClick={() => setOpened(!opened)}>{opened ? "Close viewer" : "Reopen viewer"}</button></nav>
-    <main style={{ display: "flex", height: 780, width: frameWidth }}>{screen === "turn-card"
+    <main style={{ display: "flex", height: 780, width: frameWidth }}>{file && filePanel ? <FilePanel panel={filePanel} {...props} workspaceId="workspace" file={file} tab={tab} params={{ path: file.path }} revision={0} />
+      : screen === "turn-card"
       ? <div aria-label="Turn card frame" style={{ width: "100%" }}>{turnDocs ? <LegacyTurnCard {...props} agentId="docs" timestamp={new Date(0)} item={{ type: "plugin", kind: "turn-docs", version: 1, data: turnDocs } as any} /> : null}</div>
       : screen === "checkout-card"
       ? <div aria-label="Turn card frame" style={{ width: "100%" }}>{checkoutDocs ? <TurnCard {...props} agentId="docs" timestamp={new Date(0)} item={{ type: "plugin", kind: "turn-docs", version: 2, data: checkoutDocs } as any} /> : null}</div>
@@ -98,5 +117,8 @@ function App() {
       : browsing ? <Panel context="workspace" workspaceId="workspace" theme={theme as any} layout={{ compact } as any} {...({} as any)} />
       : opened ? <DocumentScreen key={siblings ? "turn-card" : path} {...props} params={siblings ? { workspaceId: "workspace", path, siblings } : { workspaceId: "workspace", path }} /> : null}</main>
   </QueryClientProvider>;
+}
+function FilePanel({ panel, ...props }: { panel: FilePanelContribution } & Record<string, any>) {
+  return <panel.Component {...(props as any)} />;
 }
 createRoot(document.getElementById("root")!).render(<App />);
