@@ -7,11 +7,11 @@ import type { PluginHandlerContext, PluginServerContext } from "@getpaseo/plugin
 import type { TurnDocsHost } from "./server/turn-docs";
 import { searchDocument, listRecent, openDocument, readBlocks, readMediaChunk, readPageText, readRows, readCell, renderPage, renderThumbnail, scanIssues, renderReviewPage } from "./server/documents";
 import { searchGenerations } from "./server/search";
-import { workspaceRoot } from "./server/paths";
+import { workspacePath, workspaceRoot } from "./server/paths";
 import { forgetScan, hasDocuments, scannedDocuments } from "./server/recent";
 import { createTurnDocs } from "./server/turn-docs";
 import { viewerSettings } from "./shared/settings";
-import { docBlocksRpc, docIssuesRpc, docOpenRpc, docPageRpc, docRowsRpc, docCellRpc, docsRecentRpc, docsVisitRpc, docsAnyRpc, docTextRpc, docThumbnailRpc, mediaChunkRpc, fileInfoRpc, fileChunkRpc, docSearchRpc, tipsDismissRpc, tipsReadRpc, documentsViewReadRpc, documentsViewWriteRpc, viewerStateOpenedRevisionsRpc, viewerStateOpenedRpc, viewerStatePinRpc, viewerStateReadRpc, viewerStateReviewRpc, viewerStateWriteRpc, reviewPageImageRpc } from "./shared/rpc";
+import { docBlocksRpc, docIssuesRpc, docOpenRpc, docPageRpc, docRowsRpc, docCellRpc, docsRecentRpc, docsVisitRpc, docsAnyRpc, docTextRpc, docThumbnailRpc, mediaChunkRpc, fileInfoRpc, fileChunkRpc, docLocateRpc, docSearchRpc, tipsDismissRpc, tipsReadRpc, documentsViewReadRpc, documentsViewWriteRpc, viewerStateOpenedRevisionsRpc, viewerStateOpenedRpc, viewerStatePinRpc, viewerStateReadRpc, viewerStateReviewRpc, viewerStateWriteRpc, reviewPageImageRpc } from "./shared/rpc";
 
 // Workspace roots are salted with the viewer-state secret, so the file does not reveal them.
 const visitStore = new VisitStore(stateDirectory(), async (root) => (await viewerStateStore.scannedKeys(root))(""));
@@ -74,6 +74,9 @@ export default function contribute(server: PluginServerContext) {
   );
   server.handle(fileChunkRpc, async ({ workspaceId, path, revision, offset, length }, { paseo }) =>
     fileChunk(await workspaceRoot(paseo, workspaceId), path, revision, offset, length),
+  );
+  server.handle(docLocateRpc, async ({ workspaceId, absolutePath }, { paseo }) =>
+    ({ path: await workspacePath(await workspaceRoot(paseo, workspaceId), absolutePath) }),
   );
   server.handle(docSearchRpc, async ({ workspaceId, path, password, query, cursor, searchId }, { paseo }) =>
     searchDocument({ root: await workspaceRoot(paseo, workspaceId), path, password }, query, cursor, undefined,

@@ -37,6 +37,20 @@ function contains(root: string, target: string): boolean {
   return path === "" || (path !== ".." && !path.startsWith(`..${sep}`) && !isAbsolute(path));
 }
 
+// Both sides are resolved, so `..` segments and links that leave the workspace stay outside. A path
+// outside the workspace reads as outside whether or not it exists.
+export async function workspacePath(root: string, absolutePath: string): Promise<string> {
+  if (absolutePath.includes("\0") || !isAbsolute(absolutePath)) throw new Error(ERROR_MESSAGES.invalidPath());
+  const realRoot = await realpath(root);
+  const target = await realpath(absolutePath).catch((error: NodeJS.ErrnoException) => {
+    const lexical = resolve(absolutePath);
+    if (!contains(realRoot, lexical)) throw new Error(ERROR_MESSAGES.outsideWorkspace());
+    return notFound(relative(realRoot, lexical))(error);
+  });
+  if (!contains(realRoot, target)) throw new Error(ERROR_MESSAGES.outsideWorkspace());
+  return relative(realRoot, target).split(sep).join("/");
+}
+
 export async function resolveInside(root: string, relativePath: string): Promise<string> {
   if (relativePath.includes("\0")) throw new Error(ERROR_MESSAGES.invalidPath());
   const lexical = resolve(root, relativePath);
