@@ -14,7 +14,7 @@ Each row is a failing test first, then a fix. Source is the report in
 | S7 | original post | A `.pptx` deck shows a slide strip with each slide's text and images, without Office installed. | plugin |
 | S8 | MACscr, rangerrick337 | An `.mp4` the agent recorded plays in the app. | plugin (web/desktop), shortcoming on native |
 | S9 | LimDaeKyung | HEIC and TIFF images render. | plugin |
-| S10 | grinidx, dthinkr, LimDaeKyung | Clicking a document in the built-in Files tree opens it in the viewer. | core gap, needs a host file previewer hook (Discussion #5930) |
+| S10 | grinidx, dthinkr, LimDaeKyung | Clicking a document in the built-in Files tree opens it in the viewer. | host API landed as file panels (getpaseo/paseo#7411, Paseo 0.13.0); the viewer does not use them yet |
 | S11 | paseo #5783 | The compiled client bundle loads on iOS (Hermes): no syntax Hermes rejects. | plugin |
 
 ## Core gaps (S10)

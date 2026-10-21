@@ -1,28 +1,16 @@
 # Paseo host API proposals
 
-These are proposed host changes, not plugin capabilities. Nothing has been
-published upstream. The viewer continues to work with SDK 0.11.2.
+Host changes the viewer needs. The first landed upstream as file panels; the
+other two are still proposals. The viewer continues to work with SDK 0.11.2.
 
-## Open with Document Viewer
+## Open with Document Viewer (landed)
 
-Proposed registration:
-
-```ts
-client.addFileOpenHandler({
-  id: "document-viewer",
-  title: "Document Viewer",
-  extensions: ["pdf", "docx", "xlsx", "csv", "tsv", "pptx", "mp4", "mp3", "wav"],
-  onOpen: ({ workspaceId, path, openScreen }) =>
-    openScreen({ screenId: "document", params: { workspaceId, path } }),
-});
-```
-
-The host owns the Open with menu and user-configured default. Default file clicks
-retain existing behavior until the user chooses this handler. Resolve multiple
-handlers explicitly, target the correct daemon, release registrations on plugin
-unload, and provide a capability check for older hosts. The server still enforces
-workspace confinement. Add host tests for competing handlers, deleted files,
-workspace changes, plugin reload and mobile navigation.
+Landed in [getpaseo/paseo#7411](https://github.com/getpaseo/paseo/pull/7411) as
+file panels, for Paseo 0.13.0. `client.addFilePanel` claims extensions or exact
+filenames, and Paseo mounts the panel as the body of the file tab with a handle
+to the file. The host owns Open with, the picker when panels compete, the
+per-extension default and Settings > Files. Unlike this proposal, the panel
+renders inside the file tab instead of opening a plugin screen.
 
 ## Save/share a workspace original
 
@@ -36,6 +24,9 @@ during transfer; never export a mixture of revisions. A save destination must
 not be supplied as an arbitrary daemon path. Preserve original encryption and
 format. Test picker cancellation, low disk space, relay interruption, confinement,
 filename handling and files larger than in-memory Blob limits.
+
+File panels leave this open: `writeBytes` writes the workspace file and has no
+device export.
 
 ## Seekable media source and native player
 
@@ -51,6 +42,9 @@ implement Range/If-Range, 200/206/416, correct MIME/length, ETag tied to revisio
 origin/authentication handling, expiry and revocation. Preserve Blob fallback on
 older hosts. Test fast-start and tail-index MP4, unsupported codecs, replaced
 files, expiring credentials, reconnect and bounded memory.
+
+File panels leave this open too: `file.url()` is a `blob:` (web) or `file:`
+(native) URL of the whole current file, so playback waits for the full read.
 
 Expose a host-supplied media component with kind, source, playback state,
 play/pause, current time, seek, duration, errors, mute/volume where available, and

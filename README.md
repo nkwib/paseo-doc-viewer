@@ -44,7 +44,7 @@ npm test
 
 For a real desktop or phone test workspace, run `node scripts/seed-media-fixtures.mjs /path/to/workspace/media-samples`. This requires FFmpeg on the development machine and creates five-second MP4, M4V, MOV and WebM clips with sound, plus WAV, MP3, M4A and FLAC tones. Existing files are preserved. Open Video or Audio in the Documents panel; native video currently shows the availability message.
 
-[docs/host-api-proposals.md](docs/host-api-proposals.md) sketches Paseo host APIs the viewer would need for opening files from the Files tree, saving on mobile and streaming media.
+[docs/host-api-proposals.md](docs/host-api-proposals.md) tracks the Paseo host APIs the viewer needs: opening files from the Files tree (landed as file panels for Paseo 0.13.0), saving on mobile and streaming media.
 
 Set `PASEO_SOURCE` to a checkout of `getpaseo/paseo` to also run the install test against Paseo's own plugin compiler. `scripts/install-check.sh` installs the committed HEAD into a throwaway Paseo home under `/tmp` and never touches `~/.paseo`.
 
