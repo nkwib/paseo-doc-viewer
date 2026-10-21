@@ -45,6 +45,16 @@ describe("pptx first-slide previews", () => {
     expect(thumbnail.preview.image).toMatchObject({ mimeType: "image/jpeg", width: 160, height: 120 });
   });
 
+  it("skip a saved picture of one color, as python-pptx saves, for slide 1's first picture or its title", async () => {
+    const white = Buffer.from(await ((await decode(solidPng(256, 192, [255, 255, 255]))) as Image).encodeJPEG(80));
+    const root = workspace({
+      "picture.pptx": await deckPptx([{ title: "Cover", body: "x", images: [noisePng(400, 300)] }], { name: "docProps/thumbnail.jpeg", data: white }),
+      "titled.pptx": await deckPptx([{ title: "Q3 board update", body: "x", titlePlaceholder: true }], { name: "docProps/thumbnail.png", data: solidPng(256, 192, [30, 58, 95]) }),
+    });
+    expect((await deckThumbnail(root, "picture.pptx")).preview).toMatchObject({ type: "image", source: "slide-picture" });
+    expect((await deckThumbnail(root, "titled.pptx")).preview).toEqual({ type: "title", title: "Q3 board update" });
+  });
+
   it("skip a WMF thumbnail and fall back to slide 1's first picture, then to its title", async () => {
     const saved = { name: "docProps/thumbnail.wmf", data: wmf };
     const root = workspace({
