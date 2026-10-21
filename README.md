@@ -1,6 +1,6 @@
 # PDF and Office viewer for Paseo
 
-![PDF and Office viewer showing a Word document with a table and chart inside Paseo](assets/listing/cover-hd.png)
+![A Paseo chat whose turn card lists four changed documents, with the quarterly report PDF open beside it](assets/listing/cover-hd.png)
 
 Review the files your agents produce without leaving [Paseo](https://github.com/getpaseo/paseo).
 

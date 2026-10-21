@@ -5,9 +5,10 @@
   "icon": "assets/icon.png",
   "media": [
     "assets/listing/cover-hd.png",
-    "assets/listing/data-hd.png",
-    "assets/listing/review-hd.png",
+    "assets/listing/documents-hd.png",
     "assets/listing/turns-hd.png",
+    "assets/listing/review-hd.png",
+    "assets/listing/data-hd.png",
     "assets/listing/phone-hd.png"
   ],
   "requirements": {
