@@ -2,7 +2,7 @@ import { posix } from "node:path";
 import { DEFAULT_RENDER_WIDTH_PX, MAX_RESPONSE_BYTES } from "../shared/limits";
 import { ERROR_MESSAGES, errorText } from "../shared/errors";
 import { decodeEntities } from "./html";
-import { embeddedImage } from "./images";
+import { embeddedImage, oneColor } from "./images";
 import { base64Capacity, decodeBudget, type EncodedImage, type Fit } from "./raster";
 import { readEntry, readText, type ZipIndex } from "./zip";
 
@@ -193,14 +193,16 @@ function slideTitle(xml: string): string {
 
 export async function firstSlidePreview(deck: Deck, fit: Fit): Promise<SlidePreview> {
   const budget = decodeBudget();
-  const picture = async (name: string) => {
-    const bytes = await readEntry(deck.index, name, "pptx").catch(() => null);
+  const read = (name: string) => readEntry(deck.index, name, "pptx").catch(() => null);
+  const picture = async (bytes: Buffer | null) => {
     if (!bytes) return null;
     const image = await embeddedImage(bytes, fit, budget);
     return typeof image === "string" ? null : image;
   };
   const saved = await savedThumbnail(deck.index);
-  const savedImage = saved ? await picture(saved) : null;
+  const savedBytes = saved ? await read(saved) : null;
+  // python-pptx saves the same white picture in every deck, so a picture of one color shows nothing of it.
+  const savedImage = savedBytes && !(await oneColor(savedBytes, budget)) ? await picture(savedBytes) : null;
   if (savedImage) return { type: "image", source: "saved-thumbnail", image: savedImage };
   const part = deck.slides[0];
   const xml = part ? await readText(deck.index, part, "pptx") : null;
@@ -212,7 +214,7 @@ export async function firstSlidePreview(deck: Deck, fit: Fit): Promise<SlidePrev
     if (!target || tried.has(target)) continue;
     if (tried.size >= MAX_PREVIEW_PICTURES) break;
     tried.add(target);
-    const image = await picture(target);
+    const image = await picture(await read(target));
     if (image) return { type: "image", source: "slide-picture", image };
   }
   return { type: "title", title: slideTitle(xml) };

@@ -357,6 +357,23 @@ export async function renderImage(bytes: Buffer, family: ImageFamily, fit: Fit):
   return guarded(codec, () => fitCodec(codec, bytes, size, fit));
 }
 
+// JPEG blurs a flat color by a step or two.
+const ONE_COLOR_TOLERANCE = 2;
+
+export async function oneColor(bytes: Buffer, budget: DecodeBudget): Promise<boolean> {
+  const codec = codecFor(bytes, ["raster"]);
+  if (!codec?.decode) return false;
+  try {
+    const size = await sizeOf(codec, bytes);
+    if (!spend(budget, size.width * size.height)) return false;
+    const { data } = await codec.decode(bytes);
+    for (let i = 4; i < data.length; i++) if (Math.abs(data[i] - data[i % 4]) > ONE_COLOR_TOLERANCE) return false;
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 export async function embeddedImage(bytes: Buffer, fit: Fit, budget: DecodeBudget): Promise<EncodedImage | string> {
   const codec = codecFor(bytes, ["raster", "decoded"]);
   if (!codec) return errorText(ERROR_MESSAGES.unsupportedImage());

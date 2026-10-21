@@ -7,6 +7,33 @@
   "pages": [
     {
       "output": "cover-hd.png",
+      "source": "screenshot-side-by-side.png",
+      "crop": [
+        0,
+        0,
+        1600,
+        830
+      ],
+      "title": "Open the files your agents create, next to the chat.",
+      "wide": true,
+      "caption": "The turn card lists the documents the turn changed. Side by side, they open in the explorer next to the chat."
+    },
+    {
+      "output": "documents-hd.png",
+      "source": "screenshot-documents.png",
+      "crop": [
+        400,
+        45,
+        1600,
+        875
+      ],
+      "title": "Every document\nat a glance.",
+      "body": "List, Details, Previews or Tree.\nFilter by type, New\nor Needs review.",
+      "detail": "PDF, Word, Excel, PowerPoint\nCSV, JSON Lines, Parquet",
+      "caption": "Previews show page 1 of a PDF and a deck's picture or title. Each file type has its own color."
+    },
+    {
+      "output": "turns-hd.png",
       "source": "screenshot-docx.png",
       "crop": [
         400,
@@ -14,24 +41,10 @@
         1600,
         1000
       ],
-      "title": "Open the files\nyour agents\ncreate.",
-      "body": "Read documents inside Paseo.\nInspect spreadsheets and data.\nSend PDF notes to an agent.",
-      "detail": "PDF, Word, Excel, PowerPoint\nCSV, JSON Lines, Parquet",
-      "caption": "Word documents open as a reading view, including tables and images."
-    },
-    {
-      "output": "data-hd.png",
-      "source": "screenshot-xlsx.png",
-      "crop": [
-        400,
-        0,
-        1600,
-        1000
-      ],
-      "title": "Look beyond\nthe cell value.",
-      "body": "Inspect the formula, saved result\nand number format.\nBrowse rows as labelled records.",
-      "detail": "Excel, CSV, TSV, JSON Lines, Parquet",
-      "caption": "Spreadsheet results come from the file. The viewer does not recalculate formulas."
+      "title": "Step through\nwhat a turn\nchanged.",
+      "body": "Open a file from the turn card.\nPrevious and Next go through\nthe card's other files.",
+      "detail": "Thumbnails of PDFs and images\nOpened, New and Changed labels",
+      "caption": "Word documents open as a reading view, including tables and charts."
     },
     {
       "output": "review-hd.png",
@@ -48,19 +61,18 @@
       "caption": "PDF review notes, message preview and recipient selection from the real plugin."
     },
     {
-      "output": "turns-hd.png",
-      "source": "screenshot-turn-card.png",
+      "output": "data-hd.png",
+      "source": "screenshot-xlsx.png",
       "crop": [
-        480,
-        290,
-        1520,
-        742
+        400,
+        0,
+        1600,
+        1000
       ],
-      "title": "Open results\nright from\nthe conversation.",
-      "titleSize": 64,
-      "body": "When a turn ends, see the\ndocuments that changed.\nOpen a file from its card.",
-      "detail": "New and Changed labels\nA New filter in Documents",
-      "caption": "The card lists files changed during the turn, including changes made by other programs."
+      "title": "Look beyond\nthe cell value.",
+      "body": "Inspect the formula, saved result\nand number format.\nBrowse rows as labelled records.",
+      "detail": "Excel, CSV, TSV, JSON Lines, Parquet",
+      "caption": "Spreadsheet results come from the file. The viewer does not recalculate formulas."
     },
     {
       "output": "phone-hd.png",
@@ -73,7 +85,7 @@
       ],
       "title": "Review documents from your phone.",
       "wide": true,
-      "caption": "Open a changed file, read the PDF and return to pinned pages. Real compact-layout screenshots."
+      "caption": "Open a file from the turn card, page through the PDF and step to the next file. Real compact-layout screenshots."
     }
   ]
 }
