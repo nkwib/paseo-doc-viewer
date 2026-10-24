@@ -29,7 +29,7 @@ function hostStub(): object {
         if (key === "__esModule") return true;
         if (key === "Platform") return { OS: "ios", select: (options: Record<string, unknown>) => options.ios ?? options.default };
         if (key === "StyleSheet") return { create: <T>(styles: T) => styles };
-        // Under 1,100 pt, where Auto opens a document in its own tab.
+        // Under 1,100 pt, where Auto opens the standalone viewer.
         if (key === "Dimensions") return { get: () => ({ width: 1000, height: 800 }) };
         return () => null;
       },

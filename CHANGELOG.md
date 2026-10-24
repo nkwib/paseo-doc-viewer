@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+### Fixed
+
+- The reader's Open in tab button in Documents is now Open full view, and the first-open chooser and the Open documents setting hint say Full view opens the standalone viewer, not a tab.
+
 ## 0.6.0 (2026-10-21)
 
 Reading PDFs inside Documents and the PDF page field come from [#1](https://github.com/nkwib/paseo-doc-viewer/pull/1) by [@CatIIIIIIII](https://github.com/CatIIIIIIII). Thank you.

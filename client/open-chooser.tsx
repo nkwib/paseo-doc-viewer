@@ -8,8 +8,8 @@ import type { Styles } from "./ui";
 
 const SAVED_TEXT: { readonly [P in OpenPreference]: string } = {
   side: "Documents open side by side from now on.",
-  full: "Documents open in their own tab from now on.",
-  auto: "Documents open side by side on wide windows, in their own tab otherwise.",
+  full: "Documents open in full view from now on.",
+  auto: "Documents open side by side on wide windows, in full view otherwise.",
 };
 
 // Asked once, on the first document opened on a wide layout; the answer is the Open documents setting.
@@ -47,7 +47,7 @@ export function OpenChooser({ theme, styles }: { theme: PluginTheme; styles: Sty
         <Choice theme={theme} styles={styles} label="Side by side" hint="Next to the chat" disabled={saving} onPress={() => void choose("side")}>
           <Mockup theme={theme} chat />
         </Choice>
-        <Choice theme={theme} styles={styles} label="Full view" hint="In its own tab" disabled={saving} onPress={() => void choose("full")}>
+        <Choice theme={theme} styles={styles} label="Full view" hint="Standalone viewer" disabled={saving} onPress={() => void choose("full")}>
           <Mockup theme={theme} chat={false} />
         </Choice>
       </View>

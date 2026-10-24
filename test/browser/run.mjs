@@ -1261,12 +1261,12 @@ try {
   await expect(page.getByText("Document 2 of 12", { exact: true })).toBeVisible();
   await page.getByRole("button", { name: "Next document", exact: true }).click();
   await expect(page.getByText("Document 3 of 12", { exact: true })).toBeVisible();
-  // Open in tab hands the document and its folder to the standalone screen.
+  // Open full view hands the document and its folder to the standalone screen.
   expect(await page.evaluate(() => window.__openedScreen)).toBeUndefined();
-  await page.getByRole("button", { name: "Open in tab", exact: true }).click();
-  const tabbed = await page.evaluate(() => window.__openedScreen);
-  expect(tabbed).toMatchObject({ screenId: "document", params: { workspaceId: "workspace", path: "exports/run-3.csv" } });
-  expect(JSON.parse(tabbed.params.siblings)).toEqual(runs);
+  await page.getByRole("button", { name: "Open full view", exact: true }).click();
+  const fullView = await page.evaluate(() => window.__openedScreen);
+  expect(fullView).toMatchObject({ screenId: "document", params: { workspaceId: "workspace", path: "exports/run-3.csv" } });
+  expect(JSON.parse(fullView.params.siblings)).toEqual(runs);
   await expect(page.getByText("Document 3 of 12", { exact: true })).toBeVisible();
   await expect(page.getByRole("button", { name: "Back to documents", exact: true })).toHaveCount(0);
   await showDocuments(page);
@@ -1308,10 +1308,10 @@ try {
   // A PDF read inside a 230 pt sidebar keeps its other tools behind More, and nothing runs past the edge.
   await fileRow("report.pdf").click();
   await expect(page.getByRole("button", { name: "Next page", exact: true })).toBeVisible();
-  await expect(page.getByRole("button", { name: "Open in tab", exact: true })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Open full view", exact: true })).toBeVisible();
   await expect(page.getByRole("button", { name: "Page map", exact: true })).toHaveCount(0);
   await page.getByRole("button", { name: "More actions", exact: true }).click();
-  for (const name of ["Back to documents", "Open in tab", "Previous document", "Next document", "Find in document", "More actions", "Page map", "Mark reviewed", "Download original", "Previous page", "Next page", "Zoom in"]) {
+  for (const name of ["Back to documents", "Open full view", "Previous document", "Next document", "Find in document", "More actions", "Page map", "Mark reviewed", "Download original", "Previous page", "Next page", "Zoom in"]) {
     const box = await page.getByRole("button", { name, exact: true }).boundingBox();
     expect(box.x + box.width, name).toBeLessThanOrEqual(230);
   }
@@ -1335,7 +1335,7 @@ try {
   await showDocuments(page);
   await fileRow("report.pdf").click();
   await expect(page.getByRole("button", { name: "Page map", exact: true })).toBeVisible();
-  for (const name of ["Open in tab", "Next document", "Find in document", "Page map", "Mark reviewed", "Download original", "Zoom in"]) {
+  for (const name of ["Open full view", "Next document", "Find in document", "Page map", "Mark reviewed", "Download original", "Zoom in"]) {
     const box = await page.getByRole("button", { name, exact: true }).boundingBox();
     expect(box.x + box.width, name).toBeLessThanOrEqual(560);
   }
@@ -1348,7 +1348,7 @@ try {
     await fileRow(name).click();
     await page.getByRole("button", { name: "More actions", exact: true }).click();
     await expect(page.getByRole("button", { name: "Download original", exact: true })).toBeVisible();
-    for (const control of ["Back to documents", "Open in tab", "More actions", "Download original"]) {
+    for (const control of ["Back to documents", "Open full view", "More actions", "Download original"]) {
       const box = await page.getByRole("button", { name: control, exact: true }).boundingBox();
       expect(box.x + box.width, `${name}: ${control}`).toBeLessThanOrEqual(230);
     }
@@ -1454,7 +1454,7 @@ try {
   await showDocuments(page);
   await page.getByRole("button", { name: /^contract\.docx, / }).click();
   await expect(page.getByText("How should documents open?", { exact: true })).toBeVisible();
-  for (const name of ["Side by side, next to the chat", "Full view, in its own tab", "Decide for me (Auto)", "Open in tab"]) {
+  for (const name of ["Side by side, next to the chat", "Full view, standalone viewer", "Decide for me (Auto)", "Open full view"]) {
     const box = await page.getByRole("button", { name, exact: true }).boundingBox();
     expect(box.x + box.width, name).toBeLessThanOrEqual(320 + 8);
   }
@@ -1493,5 +1493,5 @@ try {
   await openFromCard({ width: 1100, height: 1000 });
   await expect.poll(opened).toEqual({ screen: undefined, panel: besideChat });
   expect(failures).toEqual([]);
-  console.log("Browser checks passed: persisted page/zoom/sheet, reset, scoped find shortcut, PDF/Word/grid find navigation, Word table fills its card, cell inspector, record cards, bounded issue check, original-file download bytes, WAV decoding/playback, WebM audio-track playback, visible media/animation/download loading with cancel and navigation, stale-query/cancel/slow-position races, PDF page map (visible-first, at most two thumbnail requests, current page marked, open page, close stops requests), page pins (label, revisit after reopen, may need checking after rewrite, confirm, remove), review marks (explicit only, one button name in both states, Documents status, Needs review and New filters, rewrite race), Documents times read again on focus, New cleared by opening until the file changes, first-run tips (Next, Skip, Done, kept dismissed after reload, reopen, phone fit), review notes (collect, edit, preview, copy, busy preselected agent, stale, send), phone toolbar fit, JSON Lines (named columns, full value and copy, record JSON, invalid-line issues, find), turn card settings link (desktop, 390 px fit, fallback hint), turn card thumbnails, Opened pill and document stepper (desktop, phone row, per-document reset), turn card folder rows (collapsed checkout and new folder, Show and Hide under one name with aria-expanded, thumbnails and stepper only once shown, phone fit), kind colors and their setting, filter chip icons (status and type glyphs, hidden from screen readers, phone scroll, sidebar fit), view switch (beside search, kept per layout class, last press wins over a late answer, phone fit), Details (columns, phone rows), Previews (tiles with page count, rows for other kinds, sidebar rows, phone columns), Tree (folders first, counts, folder chains that stay open when a file splits them, tree items with levels, toggle, Space on rows, Expand all and Collapse all, search opens matches, folder siblings for the stepper, PDFs read in Documents with the stepper and in sidebar width, kept per layout class, sidebar row, phone fit), empty Documents saying what the scan did not reach, every kind read in Documents (sidebar fit, Previous and Next across kinds, Open in tab with folder siblings, Back keeps search, type filter, New and Needs review, collapsed headings and scroll), first-open chooser (wide only, 320 pt fit, saved, asked once), open routing (phones full screen, Side by side in the explorer, Auto from 1,100 pt), one toolbar row at 320 pt.");
+  console.log("Browser checks passed: persisted page/zoom/sheet, reset, scoped find shortcut, PDF/Word/grid find navigation, Word table fills its card, cell inspector, record cards, bounded issue check, original-file download bytes, WAV decoding/playback, WebM audio-track playback, visible media/animation/download loading with cancel and navigation, stale-query/cancel/slow-position races, PDF page map (visible-first, at most two thumbnail requests, current page marked, open page, close stops requests), page pins (label, revisit after reopen, may need checking after rewrite, confirm, remove), review marks (explicit only, one button name in both states, Documents status, Needs review and New filters, rewrite race), Documents times read again on focus, New cleared by opening until the file changes, first-run tips (Next, Skip, Done, kept dismissed after reload, reopen, phone fit), review notes (collect, edit, preview, copy, busy preselected agent, stale, send), phone toolbar fit, JSON Lines (named columns, full value and copy, record JSON, invalid-line issues, find), turn card settings link (desktop, 390 px fit, fallback hint), turn card thumbnails, Opened pill and document stepper (desktop, phone row, per-document reset), turn card folder rows (collapsed checkout and new folder, Show and Hide under one name with aria-expanded, thumbnails and stepper only once shown, phone fit), kind colors and their setting, filter chip icons (status and type glyphs, hidden from screen readers, phone scroll, sidebar fit), view switch (beside search, kept per layout class, last press wins over a late answer, phone fit), Details (columns, phone rows), Previews (tiles with page count, rows for other kinds, sidebar rows, phone columns), Tree (folders first, counts, folder chains that stay open when a file splits them, tree items with levels, toggle, Space on rows, Expand all and Collapse all, search opens matches, folder siblings for the stepper, PDFs read in Documents with the stepper and in sidebar width, kept per layout class, sidebar row, phone fit), empty Documents saying what the scan did not reach, every kind read in Documents (sidebar fit, Previous and Next across kinds, Open full view with folder siblings, Back keeps search, type filter, New and Needs review, collapsed headings and scroll), first-open chooser (wide only, 320 pt fit, saved, asked once), open routing (phones full screen, Side by side in the explorer, Auto from 1,100 pt), one toolbar row at 320 pt.");
 } catch (error) { await saveFailure(); throw timedOut ? new Error(overLimit, { cause: error }) : error; } finally { await cleanUp(); }

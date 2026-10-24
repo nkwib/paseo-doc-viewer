@@ -70,8 +70,8 @@ function useDebounced<T>(value: T, delayMs: number): T {
 }
 
 // Documents reads every file in place; the list stays mounted under the reader, so Back finds its filters,
-// view, folders and scroll as they were. Open in tab hands the document to the standalone screen.
-export function createDocumentsPanel(openTab: (input: PluginOpenScreenInput) => void, reader: PanelReader) {
+// view, folders and scroll as they were. Open full view hands the document to the standalone screen.
+export function createDocumentsPanel(openFullView: (input: PluginOpenScreenInput) => void, reader: PanelReader) {
   return function DocumentsPanel(props: PluginWorkspacePanelProps) {
     const { ref, onLayout, bottomInset } = useBottomInset();
     const styles = useMemo(() => makeStyles(props.theme, props.layout.compact, bottomInset), [props.theme, props.layout.compact, bottomInset]);
@@ -114,8 +114,8 @@ export function createDocumentsPanel(openTab: (input: PluginOpenScreenInput) => 
                 {baseName(selection.path)}
                 {parentDir(selection.path) ? <Text style={styles.muted}>{`  ${parentDir(selection.path)}`}</Text> : null}
               </Text>
-              <ToolbarButton theme={props.theme} styles={styles} icon="ExternalLink" label={narrow || props.layout.compact ? undefined : "Open in tab"}
-                accessibilityLabel="Open in tab" onPress={() => openTab({ screenId: DOCUMENT_SCREEN_ID, params: selectionParams(props.workspaceId, selection) })} />
+              <ToolbarButton theme={props.theme} styles={styles} icon="ExternalLink" label={narrow || props.layout.compact ? undefined : "Open full view"}
+                accessibilityLabel="Open full view" onPress={() => openFullView({ screenId: DOCUMENT_SCREEN_ID, params: selectionParams(props.workspaceId, selection) })} />
             </View>
             <DocumentScreen key={`${props.workspaceId}\0${selection.path}`} host={props.host} theme={props.theme} layout={readerLayout} phone={props.layout.compact} openDocument={open}
               params={selectionParams(props.workspaceId, selection)} />
