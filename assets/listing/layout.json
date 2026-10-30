@@ -11,12 +11,26 @@
       "crop": [
         0,
         0,
-        1600,
-        830
+        2880,
+        1490
       ],
       "title": "Open the files your agents create, next to the chat.",
       "wide": true,
       "caption": "The turn card lists the documents the turn changed. Side by side, they open in the explorer next to the chat."
+    },
+    {
+      "output": "file-tab-hd.png",
+      "source": "screenshot-file-tab.png",
+      "crop": [
+        0,
+        0,
+        2080,
+        1560
+      ],
+      "title": "Open documents\nfrom Paseo's\nfile tree.",
+      "body": "Double-click a PDF, Word, Excel\nor PowerPoint file. It opens in the\nviewer, in Paseo's own file tab.",
+      "detail": "Files tree, chat links and file search\nCSV, TSV, JSON Lines: Viewer or Source",
+      "caption": "Works on Paseo 0.13 and later. The tab refreshes when an agent rewrites the file."
     },
     {
       "output": "documents-hd.png",
