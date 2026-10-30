@@ -14,16 +14,11 @@ Each row is a failing test first, then a fix. Source is the report in
 | S7 | original post | A `.pptx` deck shows a slide strip with each slide's text and images, without Office installed. | plugin |
 | S8 | MACscr, rangerrick337 | An `.mp4` the agent recorded plays in the app. | plugin (web/desktop), shortcoming on native |
 | S9 | LimDaeKyung | HEIC and TIFF images render. | plugin |
-| S10 | grinidx, dthinkr, LimDaeKyung | Clicking a document in the built-in Files tree opens it in the viewer. | host API landed as file panels (getpaseo/paseo#7411, Paseo 0.13.0); the viewer does not use them yet |
+| S10 | grinidx, dthinkr, LimDaeKyung | Clicking a document in the built-in Files tree opens it in the viewer. | plugin file panels on Paseo 0.13.0 and later; verified with the real host in `npm run test:host` |
 | S11 | paseo #5783 | The compiled client bundle loads on iOS (Hermes): no syntax Hermes rejects. | plugin |
 
-## Core gaps (S10)
+## File tab integration (S10)
 
-Verified on `getpaseo/paseo` main `2d86b94b2` (0.11.2):
+File panels render the viewer inside Paseo's file tabs when a supported file is opened from Files, a chat file link or file search. Paseo owns tab selection, splitting and Open with associations. The plugin keeps its bounded page and row RPCs and watches the file handle for changes.
 
-- `PluginClientContext` has no file-preview contribution point (`packages/plugin/src/client/contracts.ts:133-154`). The file pane render branch is hardcoded (`packages/app/src/file-pane/pane.tsx:173-231`).
-- `PluginWorkspaceSnapshot` carries no selected file (`packages/plugin/src/contracts.ts:20-34`).
-- `openPanel` forwards only `{ location }` (`packages/app/src/plugins/client-runtime.ts:66`), so a panel cannot be opened on a file.
-- The daemon labels `.pdf` as `application/octet-stream` (`packages/server/src/server/file-explorer/service.ts:117-124`).
-
-Plugin-side mitigation: a screen opened with `params.path`, a Command Center item, and a recent-documents list ordered by mtime.
+Documents, turn cards and `/doc` still open the in-panel reader or the standalone screen. Routing those entry points into a file tab needs a public `openFile` navigation API; see [the host proposal](docs/host-api-proposals.md#open-a-workspace-file-in-a-file-tab).

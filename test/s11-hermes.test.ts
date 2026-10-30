@@ -70,19 +70,19 @@ function hostRequire(name) {
 }
 var evaluate = globalThis.eval;
 var setup = evaluate(${JSON.stringify(bundle)})(hostRequire)["default"];
-var registered = { screen: [], cc: [], panel: [], slash: [], timeline: [], settings: [], header: [] };
+var registered = { screen: [], cc: [], panel: [], filePanel: [], slash: [], timeline: [], settings: [], header: [] };
 function record(kind) { return function (c) { registered[kind].push(c); return noop; }; }
 var subscription = { subscribe: function (observer) { observer.snapshot({ entries: [{ id: "ws" }] }); return noop; }, release: function () { return Promise.resolve(); } };
 var paseo = { workspaces: { list: function () { return Promise.resolve({ entries: [], subscription: subscription }); } } };
 function addHeaderButton(c) { registered.header.push(c); return { update: noop, remove: noop }; }
-var cleanup = setup({ addScreen: record("screen"), addCommandCenterItem: record("cc"), addWorkspacePanel: record("panel"), addSlashCommand: record("slash"), addTimelineRenderer: record("timeline"), addSettingsScreen: record("settings"), addHeaderButton: addHeaderButton, openScreen: function (input) { opened.push(input); }, openPanel: function (id, options) { opened.push({ panel: id, options: options }); }, paseo: paseo, rpc: function (contract) { return Promise.resolve(contract.name === "docs.any" ? { found: true } : { entries: [{ path: "a.pdf" }] }); } });
+var cleanup = setup({ addScreen: record("screen"), addCommandCenterItem: record("cc"), addWorkspacePanel: record("panel"), addFilePanel: record("filePanel"), addSlashCommand: record("slash"), addTimelineRenderer: record("timeline"), addSettingsScreen: record("settings"), addHeaderButton: addHeaderButton, openScreen: function (input) { opened.push(input); }, openPanel: function (id, options) { opened.push({ panel: id, options: options }); }, paseo: paseo, rpc: function (contract) { return Promise.resolve(contract.name === "docs.any" ? { found: true } : { entries: [{ path: "a.pdf" }] }); } });
 var opened = [];
 var context = {
   args: "", context: "workspace", workspace: { id: "ws" },
   openScreen: function (input) { opened.push(input); }, openPanel: noop,
   rpc: function () { return Promise.resolve({ entries: [{ path: "a.pdf", kind: "pdf", mtimeMs: 1, size: 1 }, { path: "b/new.pdf", kind: "pdf", mtimeMs: 9, size: 1 }], truncated: false }); }
 };
-log(JSON.stringify({ step: "contribute", cleanup: typeof cleanup, screens: registered.screen.length, commands: registered.cc.length, panels: registered.panel.length, slash: registered.slash.length, timeline: registered.timeline.map(function (c) { return c.kind + "@" + c.version; }), settings: registered.settings.length, title: registered.screen[0].title({ path: "report/main.pdf" }) }));
+log(JSON.stringify({ step: "contribute", cleanup: typeof cleanup, screens: registered.screen.length, commands: registered.cc.length, panels: registered.panel.length, filePanels: registered.filePanel.length, slash: registered.slash.length, timeline: registered.timeline.map(function (c) { return c.kind + "@" + c.version; }), settings: registered.settings.length, title: registered.screen[0].title({ path: "report/main.pdf" }) }));
 // setTimeout is stubbed, so let the header probe's promise chain settle before reading buttons.
 function drain(ticks) { return ticks ? Promise.resolve().then(function () { return drain(ticks - 1); }) : Promise.resolve(); }
 registered.slash[0].onSubmit(context).then(function () { return drain(20); }).then(
@@ -108,7 +108,7 @@ describe("S11: client bundle runs on the Hermes VM", () => {
     expect(result.stderr).toBe("");
     const steps = result.stdout.trim().split("\n").map((line) => JSON.parse(line));
     expect(steps).toEqual([
-      { step: "contribute", cleanup: "function", screens: 2, commands: 3, panels: 1, slash: 1, timeline: ["turn-docs@1", "turn-docs@2"], settings: 1, title: "main.pdf · report" },
+      { step: "contribute", cleanup: "function", screens: 2, commands: 3, panels: 1, filePanels: 1, slash: 1, timeline: ["turn-docs@1", "turn-docs@2"], settings: 1, title: "main.pdf · report" },
       { step: "slash", opened: [{ screenId: "document", params: { workspaceId: "ws", path: "b/new.pdf" } }], headerButtons: ["ws:FileText"] },
     ]);
   }, 120_000);

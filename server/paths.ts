@@ -1,5 +1,5 @@
-import { realpath } from "node:fs/promises";
-import { isAbsolute, relative, resolve, sep } from "node:path";
+import { readlink, realpath } from "node:fs/promises";
+import { basename, dirname, isAbsolute, relative, resolve, sep } from "node:path";
 import type { PluginHandlerContext } from "@getpaseo/plugin/server";
 import { ERROR_MESSAGES } from "../shared/errors";
 
@@ -35,6 +35,39 @@ function notFound(path: string) {
 function contains(root: string, target: string): boolean {
   const path = relative(root, target);
   return path === "" || (path !== ".." && !path.startsWith(`..${sep}`) && !isAbsolute(path));
+}
+
+// Resolve existing ancestors even when the leaf was deleted. This preserves workspace aliases
+// such as /var -> /private/var and still follows a dangling symlink that points outside the root.
+async function resolveMissingPath(path: string): Promise<string> {
+  try {
+    return await realpath(path);
+  } catch (error) {
+    if (!["ENOENT", "ENOTDIR"].includes((error as NodeJS.ErrnoException).code ?? "")) throw error;
+    const parent = dirname(path);
+    if (parent === path) throw error;
+    const link = await readlink(path).catch((failure: NodeJS.ErrnoException) => {
+      if (["ENOENT", "ENOTDIR", "EINVAL"].includes(failure.code ?? "")) return null;
+      throw failure;
+    });
+    return link === null
+      ? resolve(await resolveMissingPath(parent), basename(path))
+      : resolveMissingPath(resolve(parent, link));
+  }
+}
+
+// Both sides are resolved, so `..` segments and links that leave the workspace stay outside. A path
+// outside the workspace reads as outside whether or not it exists.
+export async function workspacePath(root: string, absolutePath: string): Promise<string> {
+  if (absolutePath.includes("\0") || !isAbsolute(absolutePath)) throw new Error(ERROR_MESSAGES.invalidPath());
+  const realRoot = await realpath(root);
+  const target = await realpath(absolutePath).catch(async (error: NodeJS.ErrnoException) => {
+    const lexical = await resolveMissingPath(absolutePath);
+    if (!contains(realRoot, lexical)) throw new Error(ERROR_MESSAGES.outsideWorkspace());
+    return notFound(relative(realRoot, lexical))(error);
+  });
+  if (!contains(realRoot, target)) throw new Error(ERROR_MESSAGES.outsideWorkspace());
+  return relative(realRoot, target).split(sep).join("/");
 }
 
 export async function resolveInside(root: string, relativePath: string): Promise<string> {

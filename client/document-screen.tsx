@@ -30,9 +30,11 @@ import { OpenChooser } from "./open-chooser";
 
 // The Documents panel embeds this screen and passes its own opener, so stepping stays in the panel.
 // `phone` is the host's layout; the panel passes a compact layout for its narrow widths too.
-export function DocumentScreen({ host, theme, layout, params, openDocument: open = openHostScreen, phone = layout.compact }: Pick<PluginScreenProps, "host" | "theme" | "layout" | "params"> & {
+// A Paseo file tab passes `chooser={false}`: Paseo opened the file, so how documents open does not apply.
+export function DocumentScreen({ host, theme, layout, params, openDocument: open = openHostScreen, phone = layout.compact, chooser = true }: Pick<PluginScreenProps, "host" | "theme" | "layout" | "params"> & {
   openDocument?: (input: PluginOpenScreenInput) => void;
   phone?: boolean;
+  chooser?: boolean;
 }) {
   const { ref, onLayout, bottomInset } = useBottomInset();
   const styles = useMemo(() => makeStyles(theme, layout.compact, bottomInset, phone), [theme, layout.compact, bottomInset, phone]);
@@ -104,7 +106,7 @@ export function DocumentScreen({ host, theme, layout, params, openDocument: open
   }
   return (
     <View ref={ref} onLayout={onLayout} style={{ flex: 1 }}>
-      {phone ? null : <OpenChooser theme={theme} styles={styles} />}
+      {phone || !chooser ? null : <OpenChooser theme={theme} styles={styles} />}
       {body}
     </View>
   );

@@ -2,7 +2,7 @@ import { build } from "esbuild";
 import { chromium, expect } from "@playwright/test";
 import { spawn } from "node:child_process";
 import { rmSync } from "node:fs";
-import { mkdir, mkdtemp, readFile, rm, utimes, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, rm, symlink, utimes, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { once } from "node:events";
@@ -1261,12 +1261,12 @@ try {
   await expect(page.getByText("Document 2 of 12", { exact: true })).toBeVisible();
   await page.getByRole("button", { name: "Next document", exact: true }).click();
   await expect(page.getByText("Document 3 of 12", { exact: true })).toBeVisible();
-  // Open in tab hands the document and its folder to the standalone screen.
+  // Open full view hands the document and its folder to the standalone screen.
   expect(await page.evaluate(() => window.__openedScreen)).toBeUndefined();
-  await page.getByRole("button", { name: "Open in tab", exact: true }).click();
-  const tabbed = await page.evaluate(() => window.__openedScreen);
-  expect(tabbed).toMatchObject({ screenId: "document", params: { workspaceId: "workspace", path: "exports/run-3.csv" } });
-  expect(JSON.parse(tabbed.params.siblings)).toEqual(runs);
+  await page.getByRole("button", { name: "Open full view", exact: true }).click();
+  const fullView = await page.evaluate(() => window.__openedScreen);
+  expect(fullView).toMatchObject({ screenId: "document", params: { workspaceId: "workspace", path: "exports/run-3.csv" } });
+  expect(JSON.parse(fullView.params.siblings)).toEqual(runs);
   await expect(page.getByText("Document 3 of 12", { exact: true })).toBeVisible();
   await expect(page.getByRole("button", { name: "Back to documents", exact: true })).toHaveCount(0);
   await showDocuments(page);
@@ -1308,10 +1308,10 @@ try {
   // A PDF read inside a 230 pt sidebar keeps its other tools behind More, and nothing runs past the edge.
   await fileRow("report.pdf").click();
   await expect(page.getByRole("button", { name: "Next page", exact: true })).toBeVisible();
-  await expect(page.getByRole("button", { name: "Open in tab", exact: true })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Open full view", exact: true })).toBeVisible();
   await expect(page.getByRole("button", { name: "Page map", exact: true })).toHaveCount(0);
   await page.getByRole("button", { name: "More actions", exact: true }).click();
-  for (const name of ["Back to documents", "Open in tab", "Previous document", "Next document", "Find in document", "More actions", "Page map", "Mark reviewed", "Download original", "Previous page", "Next page", "Zoom in"]) {
+  for (const name of ["Back to documents", "Open full view", "Previous document", "Next document", "Find in document", "More actions", "Page map", "Mark reviewed", "Download original", "Previous page", "Next page", "Zoom in"]) {
     const box = await page.getByRole("button", { name, exact: true }).boundingBox();
     expect(box.x + box.width, name).toBeLessThanOrEqual(230);
   }
@@ -1335,7 +1335,7 @@ try {
   await showDocuments(page);
   await fileRow("report.pdf").click();
   await expect(page.getByRole("button", { name: "Page map", exact: true })).toBeVisible();
-  for (const name of ["Open in tab", "Next document", "Find in document", "Page map", "Mark reviewed", "Download original", "Zoom in"]) {
+  for (const name of ["Open full view", "Next document", "Find in document", "Page map", "Mark reviewed", "Download original", "Zoom in"]) {
     const box = await page.getByRole("button", { name, exact: true }).boundingBox();
     expect(box.x + box.width, name).toBeLessThanOrEqual(560);
   }
@@ -1348,7 +1348,7 @@ try {
     await fileRow(name).click();
     await page.getByRole("button", { name: "More actions", exact: true }).click();
     await expect(page.getByRole("button", { name: "Download original", exact: true })).toBeVisible();
-    for (const control of ["Back to documents", "Open in tab", "More actions", "Download original"]) {
+    for (const control of ["Back to documents", "Open full view", "More actions", "Download original"]) {
       const box = await page.getByRole("button", { name: control, exact: true }).boundingBox();
       expect(box.x + box.width, `${name}: ${control}`).toBeLessThanOrEqual(230);
     }
@@ -1454,7 +1454,7 @@ try {
   await showDocuments(page);
   await page.getByRole("button", { name: /^contract\.docx, / }).click();
   await expect(page.getByText("How should documents open?", { exact: true })).toBeVisible();
-  for (const name of ["Side by side, next to the chat", "Full view, in its own tab", "Decide for me (Auto)", "Open in tab"]) {
+  for (const name of ["Side by side, next to the chat", "Full view, standalone viewer", "Decide for me (Auto)", "Open full view"]) {
     const box = await page.getByRole("button", { name, exact: true }).boundingBox();
     expect(box.x + box.width, name).toBeLessThanOrEqual(320 + 8);
   }
@@ -1492,6 +1492,91 @@ try {
   await expect.poll(opened).toEqual({ screen: reportPath, panel: undefined });
   await openFromCard({ width: 1100, height: 1000 });
   await expect.poll(opened).toEqual({ screen: undefined, panel: besideChat });
+  // A Paseo 0.13.0 file tab names the file by its absolute path. The panel reads it through the viewer's own
+  // RPCs, fits a phone and the explorer's 320 pt, and watches without reading the whole file or marking the tab modified.
+  const filePanel = (path, query = "") => page.goto(`http://127.0.0.1:${port}/?file=${encodeURIComponent(path)}${query}`);
+  const handleCalls = () => page.evaluate(() => window.__fileCalls);
+  const watcherCount = () => page.evaluate(() => window.__fileWatcherCount());
+  const fileEvent = (type) => page.evaluate((type) => window.__fileEvent(type), type);
+  const assertNoWholeFileReads = async () => {
+    expect((await handleCalls()).filter((method) => method !== "watch" && method !== "unwatch")).toEqual([]);
+    expect(await watcherCount()).toBe(1);
+  };
+  await fetch(`http://127.0.0.1:${port}/settings?openDocuments=unset`);
+  for (const [query, width, viewport] of [["&compact", 390, { width: 390, height: 844 }], ["&width=320", 320, { width: 1100, height: 1000 }]]) {
+    await page.setViewportSize(viewport);
+    await filePanel(join(root, "statement.pdf"), query);
+    await expect(pageField(page)).toBeVisible();
+    await expect(page.locator("main img").first()).toBeVisible();
+    expect(await page.evaluate(() => document.querySelector("main").scrollWidth)).toBe(width);
+    await page.screenshot({ path: `${shots}/harness-file-panel-pdf-${width}.png` });
+    await filePanel(join(root, "contract.docx"), query);
+    await expect(page.getByText("Unit", { exact: true })).toBeVisible();
+    expect(await page.evaluate(() => document.querySelector("main").scrollWidth)).toBe(width);
+    await page.screenshot({ path: `${shots}/harness-file-panel-docx-${width}.png` });
+    await assertNoWholeFileReads();
+  }
+  await filePanel(join(root, "statement.pdf"));
+  await expect(page.getByRole("button", { name: "Download original", exact: true })).toBeVisible();
+  for (const chrome of ["Back to documents", "Open full view"]) await expect(page.getByRole("button", { name: chrome, exact: true })).toHaveCount(0);
+  await expect(page.getByText("How should documents open?", { exact: true })).toHaveCount(0);
+  // Closing a file tab releases its watcher and keeps a note being composed for the same document.
+  await pageField(page).fill("1");
+  await pageField(page).press("Enter");
+  await page.getByRole("button", { name: "Add note to page 1", exact: true }).click();
+  await page.getByRole("textbox", { name: "Note text", exact: true }).fill("Keep this draft across file tabs");
+  await page.getByRole("button", { name: "Close viewer", exact: true }).click();
+  await expect.poll(watcherCount).toBe(0);
+  await expect(page.getByRole("textbox", { name: "Note text", exact: true })).toHaveCount(0);
+  await page.getByRole("button", { name: "Reopen viewer", exact: true }).click();
+  await expect(page.getByRole("textbox", { name: "Note text", exact: true })).toHaveValue("Keep this draft across file tabs");
+  await assertNoWholeFileReads();
+
+  // Files written by an agent refresh through the handle's notifications. A deletion clears the old
+  // content, and recreating the file recovers even when the first locate failed.
+  const liveFile = join(root, "file-panel-live.csv");
+  await writeFile(liveFile, "Name,Value\nBefore rewrite,1\n");
+  await filePanel(liveFile);
+  await expect(page.getByText("Before rewrite", { exact: true })).toBeVisible();
+  await writeFile(liveFile, "Name,Value\nAfter rewrite,2\n");
+  await fileEvent("changed");
+  await expect(page.getByText("After rewrite", { exact: true })).toBeVisible();
+  await expect(page.getByText("Before rewrite", { exact: true })).toHaveCount(0);
+  await rm(liveFile);
+  await fileEvent("deleted");
+  await expect(page.getByText("File not found", { exact: true })).toBeVisible();
+  await expect(page.getByText("After rewrite", { exact: true })).toHaveCount(0);
+  await writeFile(liveFile, "Name,Value\nRestored file,3\n");
+  await fileEvent("changed");
+  await expect(page.getByText("Restored file", { exact: true })).toBeVisible();
+  await assertNoWholeFileReads();
+
+  // A symlink replaced to point outside the workspace must not keep its previously cached reader.
+  const link = join(root, "file-panel-link.csv");
+  await symlink(liveFile, link);
+  await filePanel(link);
+  await expect(page.getByText("Restored file", { exact: true })).toBeVisible();
+  await rm(link);
+  await symlink(join(directory, "searchable.pdf"), link);
+  await fileEvent("changed");
+  await expect(page.getByText("Outside the workspace", { exact: true })).toBeVisible();
+  await expect(page.getByText("Restored file", { exact: true })).toHaveCount(0);
+  await rm(link);
+  await symlink(liveFile, link);
+  await fileEvent("changed");
+  await expect(page.getByText("Restored file", { exact: true })).toBeVisible();
+  await assertNoWholeFileReads();
+
+  await filePanel(join(root, "contract.docx"), "&light&width=320");
+  await expect(page.getByText("Unit", { exact: true })).toBeVisible();
+  expect(await page.evaluate(() => document.querySelector("main").scrollWidth)).toBe(320);
+  await page.screenshot({ path: `${shots}/harness-file-panel-light.png` });
+  await page.setViewportSize({ width: 390, height: 844 });
+  await filePanel(join(directory, "searchable.pdf"), "&compact");
+  await expect(page.getByText("Outside the workspace", { exact: true })).toBeVisible();
+  expect(await page.evaluate(() => document.querySelector("main").scrollWidth)).toBe(390);
+  await page.screenshot({ path: `${shots}/harness-file-panel-outside.png` });
+  await assertNoWholeFileReads();
   expect(failures).toEqual([]);
-  console.log("Browser checks passed: persisted page/zoom/sheet, reset, scoped find shortcut, PDF/Word/grid find navigation, Word table fills its card, cell inspector, record cards, bounded issue check, original-file download bytes, WAV decoding/playback, WebM audio-track playback, visible media/animation/download loading with cancel and navigation, stale-query/cancel/slow-position races, PDF page map (visible-first, at most two thumbnail requests, current page marked, open page, close stops requests), page pins (label, revisit after reopen, may need checking after rewrite, confirm, remove), review marks (explicit only, one button name in both states, Documents status, Needs review and New filters, rewrite race), Documents times read again on focus, New cleared by opening until the file changes, first-run tips (Next, Skip, Done, kept dismissed after reload, reopen, phone fit), review notes (collect, edit, preview, copy, busy preselected agent, stale, send), phone toolbar fit, JSON Lines (named columns, full value and copy, record JSON, invalid-line issues, find), turn card settings link (desktop, 390 px fit, fallback hint), turn card thumbnails, Opened pill and document stepper (desktop, phone row, per-document reset), turn card folder rows (collapsed checkout and new folder, Show and Hide under one name with aria-expanded, thumbnails and stepper only once shown, phone fit), kind colors and their setting, filter chip icons (status and type glyphs, hidden from screen readers, phone scroll, sidebar fit), view switch (beside search, kept per layout class, last press wins over a late answer, phone fit), Details (columns, phone rows), Previews (tiles with page count, rows for other kinds, sidebar rows, phone columns), Tree (folders first, counts, folder chains that stay open when a file splits them, tree items with levels, toggle, Space on rows, Expand all and Collapse all, search opens matches, folder siblings for the stepper, PDFs read in Documents with the stepper and in sidebar width, kept per layout class, sidebar row, phone fit), empty Documents saying what the scan did not reach, every kind read in Documents (sidebar fit, Previous and Next across kinds, Open in tab with folder siblings, Back keeps search, type filter, New and Needs review, collapsed headings and scroll), first-open chooser (wide only, 320 pt fit, saved, asked once), open routing (phones full screen, Side by side in the explorer, Auto from 1,100 pt), one toolbar row at 320 pt.");
+  console.log("Browser checks passed: persisted page/zoom/sheet, reset, scoped find shortcut, PDF/Word/grid find navigation, Word table fills its card, cell inspector, record cards, bounded issue check, original-file download bytes, WAV decoding/playback, WebM audio-track playback, visible media/animation/download loading with cancel and navigation, stale-query/cancel/slow-position races, PDF page map (visible-first, at most two thumbnail requests, current page marked, open page, close stops requests), page pins (label, revisit after reopen, may need checking after rewrite, confirm, remove), review marks (explicit only, one button name in both states, Documents status, Needs review and New filters, rewrite race), Documents times read again on focus, New cleared by opening until the file changes, first-run tips (Next, Skip, Done, kept dismissed after reload, reopen, phone fit), review notes (collect, edit, preview, copy, busy preselected agent, stale, send), phone toolbar fit, JSON Lines (named columns, full value and copy, record JSON, invalid-line issues, find), turn card settings link (desktop, 390 px fit, fallback hint), turn card thumbnails, Opened pill and document stepper (desktop, phone row, per-document reset), turn card folder rows (collapsed checkout and new folder, Show and Hide under one name with aria-expanded, thumbnails and stepper only once shown, phone fit), kind colors and their setting, filter chip icons (status and type glyphs, hidden from screen readers, phone scroll, sidebar fit), view switch (beside search, kept per layout class, last press wins over a late answer, phone fit), Details (columns, phone rows), Previews (tiles with page count, rows for other kinds, sidebar rows, phone columns), Tree (folders first, counts, folder chains that stay open when a file splits them, tree items with levels, toggle, Space on rows, Expand all and Collapse all, search opens matches, folder siblings for the stepper, PDFs read in Documents with the stepper and in sidebar width, kept per layout class, sidebar row, phone fit), empty Documents saying what the scan did not reach, every kind read in Documents (sidebar fit, Previous and Next across kinds, Open full view with folder siblings, Back keeps search, type filter, New and Needs review, collapsed headings and scroll), first-open chooser (wide only, 320 pt fit, saved, asked once), open routing (phones full screen, Side by side in the explorer, Auto from 1,100 pt), one toolbar row at 320 pt, Paseo 0.13.0 file panel (PDF and Word by absolute path at phone and 320 pt widths, no chooser or Documents header, outside the workspace, file change notifications, deletion and recovery, symlink retargeting, draft preservation, watcher cleanup, light theme, no whole-file reads or tab writes).");
 } catch (error) { await saveFailure(); throw timedOut ? new Error(overLimit, { cause: error }) : error; } finally { await cleanUp(); }

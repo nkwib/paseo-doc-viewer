@@ -12,7 +12,7 @@ import { docsRecentRpc, docsVisitRpc, docThumbnailRpc } from "../shared/rpc";
 import { viewerSettingsRpc } from "../shared/settings";
 import { baseName, GROUP_FILES, GROUP_ICON, GROUP_LABEL, humanSize, KIND_ICON, parentDir, relativeTime } from "./format";
 import { kindColor, type KindPalette } from "./kind-colors";
-import { detailsColumns, previewGrid, treeLayout } from "./panel-layout";
+import { detailsColumns, previewGrid, readerLayout, treeLayout } from "./panel-layout";
 import { DetailsHeader, DetailsRow } from "./documents-details";
 import { countText, PreviewTile, TileRow, usePreviews } from "./documents-previews";
 import { TreeActions, TreeList, useTreeExpansion } from "./documents-tree";
@@ -34,8 +34,6 @@ import { onWindowFocus } from "./web";
 const SEARCH_DEBOUNCE_MS = 250;
 const SWITCH_LABELS_MIN_WIDTH = 600;
 const SWITCH_INLINE_MIN_WIDTH = 360;
-// Narrower than this, as in the explorer, the reader keeps one toolbar row with the rest behind More.
-const READER_COMPACT_MAX_WIDTH = 480;
 const NO_GROUPS: ReadonlySet<DocumentGroup> = new Set();
 const VIEWABILITY = { itemVisiblePercentThreshold: 1 };
 const CLOCK_TICK_MS = 60_000;
@@ -70,8 +68,8 @@ function useDebounced<T>(value: T, delayMs: number): T {
 }
 
 // Documents reads every file in place; the list stays mounted under the reader, so Back finds its filters,
-// view, folders and scroll as they were. Open in tab hands the document to the standalone screen.
-export function createDocumentsPanel(openTab: (input: PluginOpenScreenInput) => void, reader: PanelReader) {
+// view, folders and scroll as they were. Open full view hands the document to the standalone screen.
+export function createDocumentsPanel(openFullView: (input: PluginOpenScreenInput) => void, reader: PanelReader) {
   return function DocumentsPanel(props: PluginWorkspacePanelProps) {
     const { ref, onLayout, bottomInset } = useBottomInset();
     const styles = useMemo(() => makeStyles(props.theme, props.layout.compact, bottomInset), [props.theme, props.layout.compact, bottomInset]);
@@ -79,8 +77,7 @@ export function createDocumentsPanel(openTab: (input: PluginOpenScreenInput) => 
     const [width, setWidth] = useState(0);
     const self = useRef({}).current;
     useEffect(() => () => reader.unmounted(self), [self]);
-    const narrow = width > 0 && width < READER_COMPACT_MAX_WIDTH;
-    const readerLayout = narrow ? { ...props.layout, compact: true } : props.layout;
+    const layout = readerLayout(props.layout, width);
     // Mounted on first show only, so a document opened from a turn card does not count as a Documents visit.
     const listShown = useRef(false);
     if (!selection) listShown.current = true;
@@ -114,10 +111,10 @@ export function createDocumentsPanel(openTab: (input: PluginOpenScreenInput) => 
                 {baseName(selection.path)}
                 {parentDir(selection.path) ? <Text style={styles.muted}>{`  ${parentDir(selection.path)}`}</Text> : null}
               </Text>
-              <ToolbarButton theme={props.theme} styles={styles} icon="ExternalLink" label={narrow || props.layout.compact ? undefined : "Open in tab"}
-                accessibilityLabel="Open in tab" onPress={() => openTab({ screenId: DOCUMENT_SCREEN_ID, params: selectionParams(props.workspaceId, selection) })} />
+              <ToolbarButton theme={props.theme} styles={styles} icon="ExternalLink" label={layout.compact ? undefined : "Open full view"}
+                accessibilityLabel="Open full view" onPress={() => openFullView({ screenId: DOCUMENT_SCREEN_ID, params: selectionParams(props.workspaceId, selection) })} />
             </View>
-            <DocumentScreen key={`${props.workspaceId}\0${selection.path}`} host={props.host} theme={props.theme} layout={readerLayout} phone={props.layout.compact} openDocument={open}
+            <DocumentScreen key={`${props.workspaceId}\0${selection.path}`} host={props.host} theme={props.theme} layout={layout} phone={props.layout.compact} openDocument={open}
               params={selectionParams(props.workspaceId, selection)} />
           </>
         ) : null}

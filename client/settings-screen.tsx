@@ -42,7 +42,7 @@ export function ViewerSettings({ theme }: PluginSurfaceProps) {
         <SettingsCard>
           <SettingsSelect
             label="Open documents"
-            hint="On a wide window. Side by side opens Documents next to the chat; Full view opens a document tab. Auto picks side by side from 1,100 pt wide. A Documents panel already on screen always shows the document, and phones always use the full screen."
+            hint="On a wide window. Side by side opens Documents next to the chat; Full view opens the standalone viewer. Auto picks side by side from 1,100 pt wide. A Documents panel already on screen always shows the document, and phones always use the standalone viewer."
             value={values.openDocuments ?? "auto"}
             options={OPEN_OPTIONS}
             disabled={settings.saving}

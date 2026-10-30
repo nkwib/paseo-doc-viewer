@@ -347,6 +347,12 @@ export const fileChunkRpc = defineRpc({
   name: "file.chunk", input: z.object({ ...documentRef, revision, offset: z.number().int().nonnegative(), length: z.number().int().positive() }),
   output: z.object({ revision, offset: z.number().int().nonnegative(), size: z.number().int().nonnegative(), data: z.string(), nextOffset: z.number().int().nonnegative().nullable() }),
 });
+// The workspace path of a file Paseo opened in a file tab, which names it by its absolute path on the host.
+export const docLocateRpc = defineRpc({
+  name: "doc.locate",
+  input: z.object({ workspaceId: z.string().min(1), absolutePath: z.string().min(1) }),
+  output: z.object({ path: z.string().min(1) }),
+});
 
 export const docSearchRpc = defineRpc({
   name: "doc.search",
@@ -408,7 +414,7 @@ export const reviewPageImageRpc = defineRpc({
 });
 export type ReviewPageImageOutput = RpcOutput<typeof reviewPageImageRpc>;
 
-export const DOCUMENT_RPCS = [docOpenRpc, docPageRpc, docThumbnailRpc, docTextRpc, docRowsRpc, docCellRpc, docIssuesRpc, docBlocksRpc, mediaChunkRpc, docsRecentRpc, docsVisitRpc, docsAnyRpc, fileInfoRpc, fileChunkRpc, docSearchRpc, viewerStateReadRpc, viewerStateWriteRpc, viewerStatePinRpc, viewerStateReviewRpc, viewerStateOpenedRpc, viewerStateOpenedRevisionsRpc, tipsReadRpc, tipsDismissRpc, documentsViewReadRpc, documentsViewWriteRpc, reviewPageImageRpc] as const;
+export const DOCUMENT_RPCS = [docOpenRpc, docPageRpc, docThumbnailRpc, docTextRpc, docRowsRpc, docCellRpc, docIssuesRpc, docBlocksRpc, mediaChunkRpc, docsRecentRpc, docsVisitRpc, docsAnyRpc, fileInfoRpc, fileChunkRpc, docLocateRpc, docSearchRpc, viewerStateReadRpc, viewerStateWriteRpc, viewerStatePinRpc, viewerStateReviewRpc, viewerStateOpenedRpc, viewerStateOpenedRevisionsRpc, tipsReadRpc, tipsDismissRpc, documentsViewReadRpc, documentsViewWriteRpc, reviewPageImageRpc] as const;
 
 export type DocOpenInput = RpcInput<typeof docOpenRpc>;
 export type DocOpenOutput = RpcOutput<typeof docOpenRpc>;
