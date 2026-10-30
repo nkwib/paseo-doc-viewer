@@ -1,10 +1,15 @@
 # Changelog
 
-## Unreleased
+## 0.7.0 (unreleased)
 
 ### New
 
-- On Paseo 0.13.0 and later, files opened from Paseo's Files tree, chat links and file search open in the viewer, inside Paseo's file tab (a file panel named Viewer). PDF, Office, Parquet, video, audio, TIFF and HEIC files open there without a prompt. CSV, TSV and JSON Lines also have Paseo's Source editor, so Paseo asks which to use each time until Don't ask me again is ticked, and a link to a line opens Source. PNG, JPEG, GIF and WebP stay with Paseo's Image panel. New `doc.locate` RPC turns the tab's absolute path into a workspace path on the daemon, and only for a file whose real path is inside the workspace; any other file shows Outside the workspace. Older Paseo versions are unaffected.
+- On Paseo 0.13.0 and later, files opened from Paseo's Files tree, chat links and file search open in the viewer, inside Paseo's file tab (a file panel named Viewer). PDF, Office, Parquet, video, audio, TIFF and HEIC files open there without a prompt. CSV, TSV and JSON Lines also have Paseo's Source editor, so Paseo asks which to use each time until Don't ask me again is ticked, and a link to a line opens Source. PNG, JPEG, GIF and WebP stay with Paseo's Image panel. New `doc.locate` RPC turns the tab's absolute path into a workspace path on the daemon, and only for a file whose real path is inside the workspace; any other file shows Outside the workspace.
+
+### Changed
+
+- Requires Paseo 0.13.0 or later, on both the app and daemon. File panels use the published SDK contract.
+- File panels watch for changes on disk and refresh the reader without transferring the whole file. Deletion clears cached content, and restoring a file recovers the reader.
 
 ### Fixed
 

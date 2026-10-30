@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
-import { addFilePanel, FILE_PANEL_EXTENSIONS, type FilePanelContribution } from "../client/file-panel";
+import type { PluginFilePanelContribution } from "@getpaseo/plugin/client";
+import { addFilePanel, FILE_PANEL_EXTENSIONS } from "../client/file-panel";
 import { DOCUMENT_KINDS, KIND_REGISTRY } from "../shared/kinds";
 
 const Component = () => null;
@@ -18,15 +19,9 @@ function acceptedSelector(files: unknown): boolean {
 }
 
 describe("file panel registration", () => {
-  it("registers nothing on hosts before Paseo 0.13.0, which have no addFilePanel", () => {
-    const cleanup = addFilePanel({ addScreen: vi.fn() } as never, Component);
-    expect(cleanup).toBeTypeOf("function");
-    expect(() => cleanup()).not.toThrow();
-  });
-
   it("registers one panel Paseo 0.13.0 accepts, and returns the host's cleanup", () => {
     const remove = vi.fn();
-    const add = vi.fn((_contribution: FilePanelContribution) => remove);
+    const add = vi.fn((_contribution: PluginFilePanelContribution) => remove);
     const cleanup = addFilePanel({ addFilePanel: add } as never, Component);
     expect(add).toHaveBeenCalledTimes(1);
     const contribution = add.mock.calls[0]![0];

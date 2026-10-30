@@ -58,6 +58,24 @@ describe("doc.locate: a file tab's absolute path as a workspace path", () => {
     await expect(workspacePath(root, `${join(root, "inside.pdf")}\0.png`)).rejects.toThrow(/invalid path/i);
   });
 
+  it("recognizes missing files through a symlinked workspace root or an internal folder alias", async () => {
+    const root = workspace({ "reports/q1.pdf": "%PDF-1.4" });
+    const aliases = workspace();
+    symlinkSync(root, join(aliases, "checkout"));
+    symlinkSync(join(root, "reports"), join(root, "current"));
+    await expect(workspacePath(realpathSync(root), join(aliases, "checkout/gone/missing.pdf"))).rejects.toThrow("File not found: gone/missing.pdf");
+    await expect(workspacePath(root, join(root, "current/missing.pdf"))).rejects.toThrow("File not found: reports/missing.pdf");
+  });
+
+  it("refuses missing files reached through external folder links and dangling file links", async () => {
+    const root = workspace();
+    const outside = workspace();
+    symlinkSync(outside, join(root, "external"));
+    symlinkSync(join(outside, "missing.pdf"), join(root, "dangling.pdf"));
+    await expect(workspacePath(root, join(root, "external/deep/missing.pdf"))).rejects.toThrow(OUTSIDE);
+    await expect(workspacePath(root, join(root, "dangling.pdf"))).rejects.toThrow(OUTSIDE);
+  });
+
   it("answers through the daemon handler with a path the reader opens", async () => {
     const root = workspaceWithFixtures("statement.pdf");
     const handlers = new Map<string, (input: unknown, context: unknown) => Promise<unknown>>();

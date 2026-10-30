@@ -1,7 +1,7 @@
 # Paseo host API proposals
 
 Host changes the viewer needs. The first landed upstream as file panels; the
-others are still proposals. The viewer continues to work with SDK 0.11.2.
+others are still proposals. The viewer targets SDK 0.13.0 and requires Paseo 0.13.0 or later.
 
 ## Open with Document Viewer (landed)
 

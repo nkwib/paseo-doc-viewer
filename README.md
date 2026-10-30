@@ -4,7 +4,7 @@
 
 Review the files your agents produce without leaving [Paseo](https://github.com/getpaseo/paseo).
 
-- Open changed documents straight from an agent's conversation.
+- Read documents in Paseo file tabs, or open changed documents straight from an agent's conversation.
 - Read PDFs and Office documents, and inspect Excel, CSV, JSON Lines and Parquet data.
 - Collect PDF notes by page and send a review to the agent you choose.
 
@@ -12,7 +12,7 @@ The Documents panel groups files by type and highlights what changed since your 
 
 ## Install
 
-Requires Paseo 0.11.2 or later with plugins enabled, and `npm` on the daemon host.
+Requires Paseo 0.13.0 or later with plugins enabled, and `npm` on the daemon host.
 
 Install the reviewed version from the [Paseo directory](https://paseo.sh/plugins/nkwib/doc-viewer):
 
@@ -41,6 +41,8 @@ npm test
 ```
 
 `npm run test:browser` renders the viewer components in headless Chromium against the real RPC handlers, with a test DOM adapter in place of React Native. It does not replace checks inside Paseo. Run `npx playwright install chromium` first, or set `CHROMIUM_EXECUTABLE_PATH` to an existing Chromium. Each run builds into its own temporary directory, which is removed when the checks pass and kept, with its path printed, when they fail. Set `VIEWER_BROWSER_DIR` to build into a directory of your choice and keep its screenshots.
+
+`npm run test:host` uses the devkit SDK to start a dedicated Paseo daemon, install this checkout and drive the real web UI with a scripted fake agent. It verifies file panels, original download bytes, review draft preservation, file changes, Open with associations, splits and the compact file view. It requires the Paseo desktop app and Chrome or an installed Playwright Chromium. The daemon, workspace and plugin state are temporary and are removed on success or failure; the regular Paseo daemon is never targeted. Screenshots and a JSON report are kept in the printed directory. Set `HOST_VERIFY_DIR` to choose that directory. See the [0.7.0 verification report](docs/releases/0.7.0.md).
 
 For a real desktop or phone test workspace, run `node scripts/seed-media-fixtures.mjs /path/to/workspace/media-samples`. This requires FFmpeg on the development machine and creates five-second MP4, M4V, MOV and WebM clips with sound, plus WAV, MP3, M4A and FLAC tones. Existing files are preserved. Open Video or Audio in the Documents panel; native video currently shows the availability message.
 

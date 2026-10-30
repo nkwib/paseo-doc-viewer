@@ -1,0 +1,18 @@
+{
+  "paseo": "0.14.0",
+  "checks": [
+    "PDF opens in a real file tab, reopens without duplication, and adds no Documents navigation",
+    "Download original preserves the PDF bytes through the real plugin transport",
+    "a review note being composed survives closing and reopening the actual host tab",
+    "Word renders inside its file tab",
+    "Excel grids and PowerPoint slide navigation render inside real file tabs",
+    "Paseo's real panel picker offers Viewer and Source and opens the selected viewer",
+    "an actual fake-agent rewrite refreshes the open tab; deletion and restoration recover",
+    "Open with switches to Source, remembers its association on reopen, and switches back to Viewer",
+    "the real turn-ended hook appends a changed-documents timeline card",
+    "Paseo splits the file pane and the reader adapts to its narrower width",
+    "a chat file link opens the compact file viewer at 390 px without duplicate navigation or horizontal overflow"
+  ],
+  "consoleErrors": [],
+  "pluginErrors": []
+}

@@ -1,7 +1,7 @@
 {
   "name": "paseo-doc-viewer",
   "private": true,
-  "version": "0.6.0",
+  "version": "0.7.0",
   "description": "Read PDFs and Office documents, inspect spreadsheets and data, and send PDF page notes to an agent without leaving Paseo.",
   "license": "MIT",
   "type": "module",
@@ -23,7 +23,8 @@
     "typecheck": "tsc --noEmit && tsc -p test/browser/tsconfig.json",
     "test": "vitest run --dir test",
     "fixtures": "node test/fixtures/make.ts",
-    "test:browser": "node test/browser/run.mjs"
+    "test:browser": "node test/browser/run.mjs",
+    "test:host": "node scripts/test-host.mjs"
   },
   "dependencies": {
     "@hyzyla/pdfium": "^3.0.0",
@@ -40,7 +41,7 @@
     "utif2": "^4.1.0"
   },
   "devDependencies": {
-    "@getpaseo/plugin": "0.11.2",
+    "@getpaseo/plugin": "0.13.0",
     "@playwright/test": "^1.62.1",
     "@tanstack/react-query": "^5.90.11",
     "@types/pngjs": "^6.0.5",
@@ -49,6 +50,7 @@
     "esbuild": "^0.28.2",
     "exceljs": "^4.4.0",
     "jszip": "^3.10.2",
+    "paseo-plugin-devkit": "0.1.0",
     "pdf-lib": "^1.17.1",
     "react": "19.1.0",
     "react-dom": "^19.1.0",

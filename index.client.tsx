@@ -48,7 +48,6 @@ export default function contribute(client: PluginClientContext) {
       id: DOCUMENTS_PANEL_ID,
       title: "Documents",
       icon: "FileText",
-      context: "workspace",
       locations: ["workspace", "explorer"],
       Component: createDocumentsPanel((input) => client.openScreen(input), reader),
     }),

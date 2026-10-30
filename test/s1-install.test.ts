@@ -38,13 +38,13 @@ function specifiers(file: string): string[] {
 const isNode = (specifier: string) =>
   specifier.startsWith("node:") || builtinModules.includes(specifier.split("/")[0]);
 
-describe("S1: plugin installs on Paseo 0.11", () => {
-  it("S1: manifest and layout satisfy the Paseo 0.11.2 plugin contract", () => {
+describe("S1: plugin installs on Paseo 0.13", () => {
+  it("S1: manifest and layout satisfy the Paseo 0.13.0 plugin contract", () => {
     const manifest = JSON.parse(readFileSync(join(PLUGIN_ROOT, "paseo-plugin.json"), "utf8"));
     const pkg = JSON.parse(readFileSync(join(PLUGIN_ROOT, "package.json"), "utf8"));
 
     expect.soft(manifest.id).toBe("paseo-doc-viewer");
-    expect.soft(manifest.requirements?.paseo, "requirements.paseo").toMatch(/^>=\s*0\.11\.[0-2]$/);
+    expect.soft(manifest.requirements?.paseo, "requirements.paseo").toBe(">=0.13.0");
     expect.soft(manifest.build, "build installs runtime dependencies on git installs").toEqual([
       ["npm", "ci", "--omit=dev", "--ignore-scripts"],
     ]);
