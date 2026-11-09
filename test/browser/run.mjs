@@ -7,7 +7,7 @@ import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { once } from "node:events";
 import { PDFDocument, StandardFonts, rgb } from "pdf-lib";
-import { inspectionWorkbook } from "../fixtures/generators.ts";
+import { deckPptx, inspectionWorkbook } from "../fixtures/generators.ts";
 // One directory per run: a shared one under node_modules let concurrent runs overwrite each other's bundle and fixtures.
 const chosenDirectory = process.env.VIEWER_BROWSER_DIR;
 const directory = chosenDirectory ? resolve(chosenDirectory) : await mkdtemp(join(tmpdir(), "viewer-browser-"));
@@ -1588,10 +1588,12 @@ try {
   await page.getByRole("button", { name: "Close viewer", exact: true }).click();
   await page.getByRole("button", { name: "Reopen viewer", exact: true }).click();
   await expect(page.getByRole("textbox", { name: "Note text", exact: true })).toHaveValue("Shorten the slide title");
-  await utimes(join(root, "deck.pptx"), new Date(), new Date(Date.now() + 2000));
+  await writeFile(join(root, "deck.pptx"), await deckPptx([{ title: "Replacement slide", body: "The other slides were removed" }]));
   await fileEvent("changed");
-  await expect(page.getByRole("textbox", { name: "Note text", exact: true })).toHaveCount(0);
-  await page.getByRole("button", { name: "Add note to slide 2", exact: true }).click();
+  await expect(page.getByText("Replacement slide", { exact: true })).toBeVisible();
+  await expect(page.getByRole("textbox", { name: "Note text", exact: true })).toHaveValue("Shorten the slide title");
+  await page.getByRole("button", { name: "Close viewer", exact: true }).click();
+  await page.getByRole("button", { name: "Reopen viewer", exact: true }).click();
   await expect(page.getByRole("textbox", { name: "Note text", exact: true })).toHaveValue("Shorten the slide title");
   await expect(page.getByText("The file changed while you were writing. This note refers to the older version.", { exact: true })).toBeVisible();
   await page.getByRole("button", { name: "Add note", exact: true }).click();

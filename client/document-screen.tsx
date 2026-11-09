@@ -170,7 +170,8 @@ function DocumentBody({ reviewScope: scope, stepper, ...props }: Parameters<type
   // A note being typed when the viewer was unmounted (for example by a workspace switch) reopens.
   const [notePage, setNotePage] = useState<number | null>(() => {
     const kept = reviewDrafts.composing(scope, props.path);
-    return kept && reviewUnit(kept) === unit && kept.page < noteCount ? kept.page : null;
+    // A rewrite can remove this page or slide. Its draft still belongs to the original revision.
+    return kept && reviewUnit(kept) === unit && (props.document.kind === "pdf" || props.document.kind === "pptx") ? kept.page : null;
   });
   const shownRevision = useRef(props.document.revision);
   const draft = useReviewDraft(scope);
@@ -185,11 +186,11 @@ function DocumentBody({ reviewScope: scope, stepper, ...props }: Parameters<type
   useEffect(() => {
     if (shownRevision.current === props.document.revision) return;
     shownRevision.current = props.document.revision;
-    setNavigation(null); setSearchMatches([]); setNotePage(null);
+    setNavigation(null); setSearchMatches([]);
   }, [props.document.revision]);
   useEffect(() => { if (navigation) setMapOpen(false); }, [navigation]);
   const searchable = ["pdf", "docx", "xlsx", "csv", "jsonl", "parquet", "pptx"].includes(props.document.kind);
-  // Page map and review notes act on a PDF page, so both need at least one.
+  // The page map remains PDF-only; review notes also support slides.
   const paged = props.document.kind === "pdf" && props.document.pageCount > 0;
   const pageMap = useMemo(() => (mapOpen ? { compact: props.compact, onClose: () => setMapOpen(false) } : null), [mapOpen, props.compact]);
   // Narrow readers keep one row: the stepper, Find and status, with the other tools behind More.
