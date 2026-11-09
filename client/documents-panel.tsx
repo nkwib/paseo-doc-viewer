@@ -30,6 +30,7 @@ import { useBottomInset } from "./use-bottom-inset";
 import { useKindPalette } from "./use-kind-colors";
 import { documentsVisits } from "./visits";
 import { onWindowFocus } from "./web";
+import { fullViewPresentation } from "./open-target";
 
 const SEARCH_DEBOUNCE_MS = 250;
 const SWITCH_LABELS_MIN_WIDTH = 600;
@@ -111,10 +112,10 @@ export function createDocumentsPanel(openFullView: (input: PluginOpenScreenInput
                 {baseName(selection.path)}
                 {parentDir(selection.path) ? <Text style={styles.muted}>{`  ${parentDir(selection.path)}`}</Text> : null}
               </Text>
-              <ToolbarButton theme={props.theme} styles={styles} icon="ExternalLink" label={layout.compact ? undefined : "Open full view"}
-                accessibilityLabel="Open full view" onPress={() => openFullView({ screenId: DOCUMENT_SCREEN_ID, params: selectionParams(props.workspaceId, selection) })} />
+              <ToolbarButton theme={props.theme} styles={styles} icon="ExternalLink" label={layout.compact ? undefined : fullViewPresentation(props.navigation).label}
+                accessibilityLabel={fullViewPresentation(props.navigation).label} onPress={() => openFullView({ screenId: DOCUMENT_SCREEN_ID, params: selectionParams(props.workspaceId, selection) })} />
             </View>
-            <DocumentScreen key={`${props.workspaceId}\0${selection.path}`} host={props.host} theme={props.theme} layout={layout} phone={props.layout.compact} openDocument={open}
+            <DocumentScreen key={`${props.workspaceId}\0${selection.path}`} host={props.host} theme={props.theme} layout={layout} phone={props.layout.compact} openDocument={open} navigation={props.navigation}
               params={selectionParams(props.workspaceId, selection)} />
           </>
         ) : null}

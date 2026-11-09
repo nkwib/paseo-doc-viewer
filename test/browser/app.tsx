@@ -120,7 +120,7 @@ function App() {
       <button onClick={() => setScreen("turn-card")}>Turn card</button>
       <button onClick={() => setScreen("checkout-card")}>Checkout card</button>
       <button onClick={() => setOpened(!opened)}>{opened ? "Close viewer" : "Reopen viewer"}</button></nav>
-    <main style={{ display: "flex", height: 780, width: frameWidth }}>{file && filePanel ? (opened ? <FilePanel panel={filePanel} {...props} workspaceId="workspace" file={file} tab={tab} params={{ path: file.path }} revision={0} /> : null)
+    <main style={{ display: "flex", height: 780, width: frameWidth }}>{file && filePanel && screen !== "review" ? (opened ? <FilePanel panel={filePanel} {...props} workspaceId="workspace" file={file} tab={tab} params={{ path: file.path }} revision={0} /> : null)
       : screen === "turn-card"
       ? <div aria-label="Turn card frame" style={{ width: "100%" }}>{turnDocs ? <LegacyTurnCard {...props} agentId="docs" timestamp={new Date(0)} item={{ type: "plugin", kind: "turn-docs", version: 1, data: turnDocs } as any} /> : null}</div>
       : screen === "checkout-card"

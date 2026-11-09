@@ -1,11 +1,19 @@
 import { describe, expect, it, vi } from "vitest";
-import { type OpenChoice, type openPreference, openTarget, SIDE_BY_SIDE_MIN_WINDOW } from "../client/open-target";
+import { fullViewPresentation, type OpenChoice, type openPreference, openTarget, SIDE_BY_SIDE_MIN_WINDOW } from "../client/open-target";
 import { createPanelReader } from "../client/panel-reader";
 import { documentScreen } from "../client/recent";
 import { viewerSettings } from "../shared/settings";
 
 const CHOICES: readonly (OpenChoice | undefined)[] = [undefined, "unset", "auto", "side", "full"];
 const UNDER = SIDE_BY_SIDE_MIN_WINDOW - 1;
+
+describe("standalone viewer labels", () => {
+  it("names a separate window only when the host exposes Electron navigation", () => {
+    expect(fullViewPresentation().label).toBe("Open full view");
+    expect(fullViewPresentation({ openAgent: vi.fn(), openWorkspace: vi.fn() }).label).toBe("Open full view");
+    expect(fullViewPresentation({ openAgent: vi.fn(), openWorkspace: vi.fn(), openBrowser: vi.fn() }).label).toBe("Open in separate window");
+  });
+});
 
 describe("openTarget", () => {
   it("opens the full screen on a phone, whatever the panel, choice and window", () => {

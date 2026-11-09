@@ -5,11 +5,15 @@ import { REVIEW_IMAGE_MAX_BASE64_CHARS, REVIEW_IMAGE_MAX_EDGE_PX, REVIEW_MAX_IMA
 // reconnects to a daemon, so the store hangs off the app's global object, keyed by host and
 // workspace, and lasts until the app reloads.
 
+export type ReviewUnit = "page" | "slide";
+
 export interface ReviewNote {
   readonly id: string;
   readonly path: string;
   readonly revision: string;
   readonly page: number;
+  /** Omitted on PDF drafts created by an older client bundle in this app session. */
+  readonly unit?: ReviewUnit;
   readonly text: string;
 }
 
@@ -27,8 +31,16 @@ export interface ReviewDraft {
 
 const EMPTY: ReviewDraft = { notes: [], images: {} };
 
-export function pageImageKey({ path, revision, page }: Pick<ReviewNote, "path" | "revision" | "page">): string {
-  return `${path}\0${revision}\0${page}`;
+export function reviewUnit(note: { readonly unit?: ReviewUnit }): ReviewUnit {
+  return note.unit ?? "page";
+}
+
+export function noteLocation(note: Pick<ReviewNote, "page" | "unit">): string {
+  return `${reviewUnit(note) === "slide" ? "Slide" : "Page"} ${note.page + 1}`;
+}
+
+export function pageImageKey({ path, revision, page, unit }: Pick<ReviewNote, "path" | "revision" | "page" | "unit">): string {
+  return `${path}\0${revision}\0${page}${unit === "slide" ? "\0slide" : ""}`;
 }
 
 export function reviewScope(hostId: string | undefined, workspaceId: string): string {
@@ -44,6 +56,7 @@ function withinBounds(image: PageImage): boolean {
 export interface ComposingNote {
   readonly revision: string;
   readonly page: number;
+  readonly unit?: ReviewUnit;
   readonly text: string;
 }
 
@@ -107,7 +120,7 @@ export function createReviewDrafts() {
     },
     attachImage(scope: string, key: string, image: PageImage): boolean {
       const draft = get(scope);
-      if (!withinBounds(image) || !draft.notes.some((note) => pageImageKey(note) === key)) return false;
+      if (!withinBounds(image) || !draft.notes.some((note) => reviewUnit(note) === "page" && pageImageKey(note) === key)) return false;
       if (!(key in draft.images) && Object.keys(draft.images).length >= REVIEW_MAX_IMAGES) return false;
       set(scope, { ...draft, images: { ...draft.images, [key]: image } });
       return true;

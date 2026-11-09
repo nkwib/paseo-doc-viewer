@@ -1,9 +1,9 @@
 import type { PluginTheme } from "@getpaseo/plugin";
-import { useRpc } from "@getpaseo/plugin/client";
+import { type PluginSurfaceProps, useRpc } from "@getpaseo/plugin/client";
 import { type ReactNode, useState } from "react";
 import { Pressable, Text, View } from "react-native";
 import { viewerSettingsRpc } from "../shared/settings";
-import { type OpenPreference, openPreference, useOpenChoice } from "./open-target";
+import { fullViewPresentation, type OpenPreference, openPreference, useOpenChoice } from "./open-target";
 import type { Styles } from "./ui";
 
 const SAVED_TEXT: { readonly [P in OpenPreference]: string } = {
@@ -13,7 +13,8 @@ const SAVED_TEXT: { readonly [P in OpenPreference]: string } = {
 };
 
 // Asked once, on the first document opened on a wide layout; the answer is the Open documents setting.
-export function OpenChooser({ theme, styles }: { theme: PluginTheme; styles: Styles }) {
+export function OpenChooser({ theme, styles, navigation }: { theme: PluginTheme; styles: Styles; navigation?: PluginSurfaceProps["navigation"] }) {
+  const full = fullViewPresentation(navigation);
   const read = useRpc(viewerSettingsRpc.read);
   const write = useRpc(viewerSettingsRpc.write);
   const choice = useOpenChoice(() => read({}));
@@ -31,7 +32,7 @@ export function OpenChooser({ theme, styles }: { theme: PluginTheme; styles: Sty
     return (
       <View style={[card, { flexDirection: "row", alignItems: "center", gap: 8 }]} accessibilityLabel="Open documents choice">
         <Text style={[styles.muted, { flex: 1, fontSize: 13 }]}>
-          {saved === "failed" ? "Could not save the choice. Set it in Settings, Document viewer." : `${SAVED_TEXT[saved]} Change it in Settings, Document viewer.`}
+          {saved === "failed" ? "Could not save the choice. Set it in Settings, Document viewer." : `${SAVED_TEXT[saved].replace("full view", full.destination)} Change it in Settings, Document viewer.`}
         </Text>
         <Pressable accessibilityRole="button" accessibilityLabel="OK" hitSlop={styles.hitSlop} onPress={() => setSaved(null)}
           style={{ paddingHorizontal: 10, height: styles.controlSize, justifyContent: "center", borderRadius: 6, borderWidth: 1, borderColor: theme.colors.border }}>
@@ -47,7 +48,7 @@ export function OpenChooser({ theme, styles }: { theme: PluginTheme; styles: Sty
         <Choice theme={theme} styles={styles} label="Side by side" hint="Next to the chat" disabled={saving} onPress={() => void choose("side")}>
           <Mockup theme={theme} chat />
         </Choice>
-        <Choice theme={theme} styles={styles} label="Full view" hint="Standalone viewer" disabled={saving} onPress={() => void choose("full")}>
+        <Choice theme={theme} styles={styles} label={full.choice} hint={full.hint} disabled={saving} onPress={() => void choose("full")}>
           <Mockup theme={theme} chat={false} />
         </Choice>
       </View>

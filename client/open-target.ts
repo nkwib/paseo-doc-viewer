@@ -1,5 +1,5 @@
 import type { RpcInput, RpcOutput } from "@getpaseo/plugin";
-import type { PluginClientOpenPanelOptions, PluginOpenScreenInput } from "@getpaseo/plugin/client";
+import type { PluginClientOpenPanelOptions, PluginOpenScreenInput, PluginSurfaceProps } from "@getpaseo/plugin/client";
 import { useEffect, useState } from "react";
 import { viewerSettings, viewerSettingsRpc } from "../shared/settings";
 import type { PanelReader } from "./panel-reader";
@@ -13,6 +13,15 @@ export const OPEN_OPTIONS: readonly { label: string; value: OpenPreference }[] =
   { label: "Side by side", value: "side" },
   { label: "Full view", value: "full" },
 ];
+
+// Paseo exposes openBrowser only on Electron. Its standalone plugin screens open in another window;
+// web and mobile navigate to a screen in the same app instead.
+export function fullViewPresentation(navigation?: PluginSurfaceProps["navigation"]) {
+  const separate = typeof navigation?.openBrowser === "function";
+  return separate
+    ? { label: "Open in separate window", choice: "Separate window", hint: "Another window", destination: "a separate window" }
+    : { label: "Open full view", choice: "Full view", hint: "Standalone viewer", destination: "full view" };
+}
 // in-place: a Documents panel on screen shows the document, with no navigation.
 // explorer: Documents opens in the explorer next to the chat. screen: the document screen.
 export type OpenTarget = "in-place" | "explorer" | "screen";

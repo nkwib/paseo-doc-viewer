@@ -3,9 +3,10 @@ import { SettingsAction, SettingsCard, SettingsSection, SettingsSelect, Settings
 import { Text, View } from "react-native";
 import { viewerSettings } from "../shared/settings";
 import { kindColorsSetting } from "./use-kind-colors";
-import { OPEN_OPTIONS, openPreference, type OpenPreference } from "./open-target";
+import { fullViewPresentation, OPEN_OPTIONS, openPreference, type OpenPreference } from "./open-target";
 
-export function ViewerSettings({ theme }: PluginSurfaceProps) {
+export function ViewerSettings({ theme, navigation }: PluginSurfaceProps) {
+  const full = fullViewPresentation(navigation);
   const settings = useSettings(viewerSettings);
   const muted = { color: theme.colors.foregroundMuted, fontSize: 13 };
   if (settings.status === "loading") return <Text style={muted}>Loading settings…</Text>;
@@ -42,9 +43,9 @@ export function ViewerSettings({ theme }: PluginSurfaceProps) {
         <SettingsCard>
           <SettingsSelect
             label="Open documents"
-            hint="On a wide window. Side by side opens Documents next to the chat; Full view opens the standalone viewer. Auto picks side by side from 1,100 pt wide. A Documents panel already on screen always shows the document, and phones always use the standalone viewer."
+            hint={`Side by side opens Documents next to the chat; ${full.choice} opens the viewer in ${full.destination}. Auto picks side by side from 1,100 pt wide. A Documents panel already on screen shows the document there; phones open it full screen.`}
             value={values.openDocuments ?? "auto"}
-            options={OPEN_OPTIONS}
+            options={OPEN_OPTIONS.map((option) => option.value === "full" ? { ...option, label: full.choice } : option)}
             disabled={settings.saving}
             onValueChange={(openDocuments: OpenPreference) => void saveOpenDocuments(openDocuments)}
           />

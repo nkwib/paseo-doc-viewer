@@ -24,14 +24,14 @@ import { kindForPath } from "../shared/kinds";
 import { openHostScreen } from "./host-client";
 import { documentScreen } from "./recent";
 import { parseSiblings, type SiblingPosition, siblingPosition } from "./siblings";
-import { reviewDrafts, reviewScope, useReviewDraft } from "./review-draft";
+import { reviewDrafts, reviewScope, reviewUnit, useReviewDraft } from "./review-draft";
 import { NoteComposer, reviewScreen } from "./review-note";
 import { OpenChooser } from "./open-chooser";
 
 // The Documents panel embeds this screen and passes its own opener, so stepping stays in the panel.
 // `phone` is the host's layout; the panel passes a compact layout for its narrow widths too.
 // A Paseo file tab passes `chooser={false}`: Paseo opened the file, so how documents open does not apply.
-export function DocumentScreen({ host, theme, layout, params, openDocument: open = openHostScreen, phone = layout.compact, chooser = true }: Pick<PluginScreenProps, "host" | "theme" | "layout" | "params"> & {
+export function DocumentScreen({ host, theme, layout, params, navigation, openDocument: open = openHostScreen, phone = layout.compact, chooser = true }: Pick<PluginScreenProps, "host" | "theme" | "layout" | "params" | "navigation"> & {
   openDocument?: (input: PluginOpenScreenInput) => void;
   phone?: boolean;
   chooser?: boolean;
@@ -106,7 +106,7 @@ export function DocumentScreen({ host, theme, layout, params, openDocument: open
   }
   return (
     <View ref={ref} onLayout={onLayout} style={{ flex: 1 }}>
-      {phone || !chooser ? null : <OpenChooser theme={theme} styles={styles} />}
+      {phone || !chooser ? null : <OpenChooser theme={theme} styles={styles} navigation={navigation} />}
       {body}
     </View>
   );
@@ -146,7 +146,7 @@ function ViewerContent({
     case "pdf":
       return <PageViewer key={key} {...common} {...remembered} kind="pdf" count={document.pageCount} password={password} searchMatches={searchMatches} pageMap={pageMap} onActivePage={onActivePage} />;
     case "pptx":
-      return <PageViewer key={key} {...common} {...remembered} kind="pptx" count={document.slideCount} />;
+      return <PageViewer key={key} {...common} {...remembered} kind="pptx" count={document.slideCount} onActivePage={onActivePage} />;
     case "image-raster":
     case "image-decoded":
       return <PageViewer key={key} {...common} {...remembered} kind="image" count={1} animation={document.animation} />;
@@ -164,11 +164,13 @@ function ViewerContent({
 }
 
 function DocumentBody({ reviewScope: scope, stepper, ...props }: Parameters<typeof ViewerContent>[0] & { reviewScope: string; stepper: ReactNode }) {
+  const unit = props.document.kind === "pptx" ? "slide" : "page";
+  const noteCount = props.document.kind === "pptx" ? props.document.slideCount : props.document.kind === "pdf" ? props.document.pageCount : 0;
   const [finding, setFinding] = useState(false);
   // A note being typed when the viewer was unmounted (for example by a workspace switch) reopens.
   const [notePage, setNotePage] = useState<number | null>(() => {
     const kept = reviewDrafts.composing(scope, props.path);
-    return kept && props.document.kind === "pdf" && kept.page < props.document.pageCount ? kept.page : null;
+    return kept && reviewUnit(kept) === unit && kept.page < noteCount ? kept.page : null;
   });
   const shownRevision = useRef(props.document.revision);
   const draft = useReviewDraft(scope);
@@ -197,8 +199,8 @@ function DocumentBody({ reviewScope: scope, stepper, ...props }: Parameters<type
   const tools = <>
     {paged ? <ToolbarButton theme={props.theme} styles={props.styles} icon="LayoutGrid" label={labels ? "Pages" : undefined} accessibilityLabel="Page map"
       variant="toggle" selected={mapOpen} onPress={() => setMapOpen(!mapOpen)} /> : null}
-    {paged ? <ToolbarButton theme={props.theme} styles={props.styles} icon="MessageSquarePlus" label={labels ? "Add note" : undefined}
-      accessibilityLabel={`Add note to page ${activePage + 1}`} variant="toggle" selected={notePage !== null} onPress={() => setNotePage(notePage === null ? activePage : null)} /> : null}
+    {noteCount > 0 ? <ToolbarButton theme={props.theme} styles={props.styles} icon="MessageSquarePlus" label={labels ? "Add note" : undefined}
+      accessibilityLabel={`Add note to ${unit} ${activePage + 1}`} variant="toggle" selected={notePage !== null} onPress={() => setNotePage(notePage === null ? activePage : null)} /> : null}
     {draft.notes.length > 0 ? <ToolbarButton theme={props.theme} styles={props.styles} icon="ClipboardList"
       label={labels ? `Review (${draft.notes.length})` : String(draft.notes.length)}
       accessibilityLabel={`Review notes (${draft.notes.length})`} onPress={() => openHostScreen(reviewScreen(props.workspaceId))} /> : null}
@@ -220,12 +222,12 @@ function DocumentBody({ reviewScope: scope, stepper, ...props }: Parameters<type
     {overflow && moreOpen ? <View style={[props.styles.toolbar, { flexWrap: "wrap", rowGap: 4 }]} accessibilityLabel="More actions">{tools}</View> : null}
     {props.compact && !overflow && stepper ? <View style={props.styles.toolbar}>{stepper}</View> : null}
     {notePage !== null ? <NoteComposer key={notePage} scope={scope} workspaceId={props.workspaceId} path={props.path} revision={props.document.revision}
-      page={notePage} password={props.password} draft={draft} theme={props.theme} styles={props.styles} onClose={() => setNotePage(null)} /> : null}
+      page={notePage} unit={unit} password={props.password} draft={draft} theme={props.theme} styles={props.styles} onClose={() => setNotePage(null)} /> : null}
     {finding ? <FindPanel key={props.document.revision} workspaceId={props.workspaceId} path={props.path} password={props.password}
       revision={props.document.revision} pageLabel={props.document.kind === "pptx" ? "Slide" : "Page"} theme={props.theme} styles={props.styles} onNavigate={setNavigation}
       onMatches={setSearchMatches}
       onClose={() => { setFinding(false); setNavigation(null); setSearchMatches([]); }} /> : null}
-    <ViewerContent {...props} navigation={navigation} searchMatches={searchMatches} pageMap={pageMap} onActivePage={paged ? setActivePage : undefined} />
+    <ViewerContent {...props} navigation={navigation} searchMatches={searchMatches} pageMap={pageMap} onActivePage={noteCount > 0 ? setActivePage : undefined} />
   </View></FindScope>;
 }
 

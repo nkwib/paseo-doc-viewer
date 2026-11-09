@@ -9,7 +9,7 @@ import { REVIEW_MAX_NOTE_CHARS } from "../shared/limits";
 import { docOpenRpc, viewerStateReadRpc } from "../shared/rpc";
 import { baseName, humanSize } from "./format";
 import { documentQueryOptions, viewerMarksQueryKey } from "./queries";
-import { pageImageKey, reviewDrafts, reviewScope, type ReviewNote, useReviewDraft } from "./review-draft";
+import { noteLocation, pageImageKey, reviewDrafts, reviewScope, reviewUnit, type ReviewNote, useReviewDraft } from "./review-draft";
 import { formatReview, noteRevisionStatus, type PinLabel } from "./review-message";
 import { canAttachPage, useAttachPage } from "./review-note";
 import { recipientStatusLabel, type ReviewRecipient, reviewRecipients, selectedRecipientId, sendReview } from "./review-send";
@@ -131,7 +131,7 @@ export function ReviewScreen({ host, theme, layout, params, navigation }: Plugin
             action={navigation ? { label: "Open agent", onPress: () => navigation.openAgent({ agentId: outcome.agentId }) } : undefined} />
         ) : (
           <MessageState theme={theme} styles={styles} icon="ClipboardList" title="No review notes"
-            detail="Open a PDF and use the note button to add a note to the page you are viewing." />
+            detail="Open a PDF or PowerPoint and use Add note on the page or slide you are viewing." />
         )}
       </View>
     );
@@ -161,7 +161,7 @@ export function ReviewScreen({ host, theme, layout, params, navigation }: Plugin
               return (
                 <View key={note.id} style={[styles.card, { padding: 12, gap: 8 }]}>
                   <View style={styles.toolbarGroup}>
-                    <Text style={styles.label}>Page {note.page + 1}</Text>
+                    <Text style={styles.label}>{noteLocation(note)}</Text>
                     {older ? <Text style={[styles.label, { color: theme.colors.statusWarning }]}>Older revision: the file changed since this note</Text> : null}
                     {attached ? <Text style={styles.label}>Page image attached</Text> : null}
                   </View>
@@ -179,13 +179,13 @@ export function ReviewScreen({ host, theme, layout, params, navigation }: Plugin
                       </>
                     ) : (
                       <>
-                        <ToolbarButton theme={theme} styles={styles} icon="Pencil" label="Edit" accessibilityLabel={`Edit note on page ${note.page + 1}`}
+                        <ToolbarButton theme={theme} styles={styles} icon="Pencil" label="Edit" accessibilityLabel={`Edit note on ${noteLocation(note).toLowerCase()}`}
                           disabled={locked} onPress={() => setEditing({ id: note.id, text: note.text })} />
-                        <ToolbarButton theme={theme} styles={styles} icon="Trash2" label="Remove" accessibilityLabel={`Remove note on page ${note.page + 1}`}
+                        <ToolbarButton theme={theme} styles={styles} icon="Trash2" label="Remove" accessibilityLabel={`Remove note on ${noteLocation(note).toLowerCase()}`}
                           disabled={locked} onPress={() => reviewDrafts.removeNote(scope, note.id)} />
-                        <ToolbarButton theme={theme} styles={styles} icon={attached ? "ImageOff" : "ImagePlus"} label={attached ? "Remove page image" : "Attach page image"}
+                        {reviewUnit(note) === "page" ? <ToolbarButton theme={theme} styles={styles} icon={attached ? "ImageOff" : "ImagePlus"} label={attached ? "Remove page image" : "Attach page image"}
                           accessibilityLabel={`${attached ? "Remove" : "Attach"} page ${note.page + 1} image`}
-                          disabled={locked || (!attached && (older || !canAttachPage(draft, note)))} onPress={() => void toggleImage(note)} />
+                          disabled={locked || (!attached && (older || !canAttachPage(draft, note)))} onPress={() => void toggleImage(note)} /> : null}
                         {attaching === note.id ? <ActivityIndicator size="small" color={theme.colors.foregroundMuted} /> : null}
                       </>
                     )}
