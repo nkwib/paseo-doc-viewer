@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.8.0 (unreleased)
+## 0.8.0 (2026-11-10)
 
 - Keep unfinished review notes available when a rewrite removes their original page or slide, including after closing and reopening the reader.
 - Add text-only review notes on PowerPoint slides. Notes retain the slide number and document revision; the sent review identifies notes from an older version. PDF page notes and image attachments remain compatible.
