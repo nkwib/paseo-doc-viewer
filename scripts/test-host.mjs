@@ -3,11 +3,11 @@ import { execFileSync } from "node:child_process";
 import { copyFile, mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import { expect as baseExpect } from "@playwright/test";
 // Point at an unreleased devkit's dist/index.js while developing both repositories together.
 const { agentTimeline, assertSafeHome, assertSafePort, daemonDown, daemonUp, PaseoWeb, pluginRows, runFakeAgentTurn, sendFakeAgentTurn } =
-  await import(process.env.PASEO_DEVKIT_ENTRY ?? "paseo-plugin-devkit");
+  await import(process.env.PASEO_DEVKIT_ENTRY ? pathToFileURL(resolve(process.env.PASEO_DEVKIT_ENTRY)).href : "paseo-plugin-devkit");
 
 const expect = baseExpect.configure({ timeout: 20_000 });
 const plugin = resolve(dirname(fileURLToPath(import.meta.url)), "..");
