@@ -35,17 +35,21 @@ export function NoteComposer({ scope, workspaceId, path, revision, page, unit = 
 }) {
   const toast = useToast();
   const attachPage = useAttachPage(workspaceId);
-  const [anchorRevision] = useState(() => {
+  // The note refers to the revision on screen when its text was started, not when the editor opened.
+  const [pinned, setPinned] = useState<string | null>(() => {
     const kept = reviewDrafts.composing(scope, path);
-    return kept?.page === page && reviewUnit(kept) === unit ? kept.revision : revision;
+    return kept?.page === page && reviewUnit(kept) === unit && kept.text.trim() ? kept.revision : null;
   });
+  const anchorRevision = pinned ?? revision;
   const [text, setText] = useState(() => {
     const kept = reviewDrafts.composing(scope, path);
     return kept?.page === page && reviewUnit(kept) === unit ? kept.text : "";
   });
   const type = (value: string) => {
+    const anchor = value.trim() ? anchorRevision : null;
+    setPinned(anchor);
     setText(value);
-    reviewDrafts.setComposing(scope, path, { revision: anchorRevision, page, unit, text: value });
+    reviewDrafts.setComposing(scope, path, { revision: anchor ?? revision, page, unit, text: value });
   };
   const close = () => {
     reviewDrafts.setComposing(scope, path, null);
