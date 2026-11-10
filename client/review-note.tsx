@@ -89,7 +89,7 @@ export function NoteComposer({ scope, workspaceId, path, revision, page, unit = 
         style={[styles.text, styles.card, { minHeight: 64, padding: 8, textAlignVertical: "top" }]}
       />
       <View style={styles.toolbarGroup}>
-        {unit === "page" ? <Checkbox theme={theme} styles={styles} label="Attach page image" checked={attach} disabled={!attachable || busy} onChange={setAttach} /> : null}
+        {unit === "page" ? <Checkbox theme={theme} styles={styles} label="Attach page image" checked={attach && attachable} disabled={!attachable || busy} onChange={setAttach} /> : null}
         <View style={styles.toolbarSpacer} />
         <ToolbarButton theme={theme} styles={styles} label="Cancel" disabled={busy} onPress={close} />
         <ToolbarButton theme={theme} styles={styles} icon="Check" label="Add note" variant="primary" disabled={!text.trim() || busy} onPress={() => void add()} />

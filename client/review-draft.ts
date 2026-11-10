@@ -43,6 +43,12 @@ export function pageImageKey({ path, revision, page, unit }: Pick<ReviewNote, "p
   return `${path}\0${revision}\0${page}${unit === "slide" ? "\0slide" : ""}`;
 }
 
+// An editor with no text yet follows the file: it keeps its page while that page exists, else
+// moves to the last one, where the viewer lands too. A file with no pages closes it.
+export function emptyNotePage(page: number, count: number): number | null {
+  return count > 0 ? Math.min(page, count - 1) : null;
+}
+
 export function reviewScope(hostId: string | undefined, workspaceId: string): string {
   return `${hostId ?? ""}\0${workspaceId}`;
 }
