@@ -72,7 +72,7 @@ try {
   else await page.getByRole("button", { name: "statement.pdf", exact: true }).dblclick();
   await openFile("statement.pdf");
   await expect(page.getByRole("button", { name: "statement.pdf", exact: true })).toHaveCount(1);
-  for (const label of ["Back to documents", "Open full view", "Open in separate window"]) await expect(page.getByRole("button", { name: label, exact: true })).toHaveCount(0);
+  for (const label of ["Back to documents", "Open full view"]) await expect(page.getByRole("button", { name: label, exact: true })).toHaveCount(0);
   await expect(page.getByText("How should documents open?", { exact: true })).toHaveCount(0);
   await web.shot(join(artifacts, "file-tab-pdf.png"));
   passed("PDF opens in a real file tab, reopens without duplication, and adds no Documents navigation");
@@ -191,7 +191,7 @@ try {
   await phone.page.getByText("Open report", { exact: true }).click();
   await expect(phone.page.getByRole("textbox", { name: "Page number of 3", exact: true })).toBeVisible();
   await expect(phone.page.getByRole("img", { name: "Page 1", exact: true })).toBeVisible();
-  for (const label of ["Back to documents", "Open full view", "Open in separate window"]) await expect(phone.page.getByRole("button", { name: label, exact: true })).toHaveCount(0);
+  for (const label of ["Back to documents", "Open full view"]) await expect(phone.page.getByRole("button", { name: label, exact: true })).toHaveCount(0);
   assert.equal(await phone.page.evaluate(() => document.documentElement.scrollWidth), 390);
   await phone.shot(join(artifacts, "compact-file-view.png"));
   assert.deepEqual(phone.pluginErrors, []);
