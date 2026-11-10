@@ -24,7 +24,7 @@ import { kindForPath } from "../shared/kinds";
 import { openHostScreen } from "./host-client";
 import { documentScreen } from "./recent";
 import { parseSiblings, type SiblingPosition, siblingPosition } from "./siblings";
-import { reviewDrafts, reviewScope, reviewUnit, useReviewDraft } from "./review-draft";
+import { emptyNotePage, reviewDrafts, reviewScope, reviewUnit, useReviewDraft } from "./review-draft";
 import { NoteComposer, reviewScreen } from "./review-note";
 import { OpenChooser } from "./open-chooser";
 
@@ -187,6 +187,8 @@ function DocumentBody({ reviewScope: scope, stepper, ...props }: Parameters<type
     if (shownRevision.current === props.document.revision) return;
     shownRevision.current = props.document.revision;
     setNavigation(null); setSearchMatches([]);
+    // A note with text keeps its revision and page. An empty editor takes the new revision, so its page must exist there.
+    if (!reviewDrafts.composing(scope, props.path)) setNotePage((page) => (page === null ? null : emptyNotePage(page, noteCount)));
   }, [props.document.revision]);
   useEffect(() => { if (navigation) setMapOpen(false); }, [navigation]);
   const searchable = ["pdf", "docx", "xlsx", "csv", "jsonl", "parquet", "pptx"].includes(props.document.kind);

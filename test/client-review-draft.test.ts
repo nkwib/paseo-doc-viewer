@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { createReviewDrafts, pageImageKey, reviewScope, sharedReviewDrafts } from "../client/review-draft";
+import { createReviewDrafts, emptyNotePage, pageImageKey, reviewScope, sharedReviewDrafts } from "../client/review-draft";
 import { REVIEW_IMAGE_MAX_BASE64_CHARS, REVIEW_IMAGE_MAX_EDGE_PX, REVIEW_MAX_IMAGES, REVIEW_MAX_NOTE_CHARS, REVIEW_MAX_NOTES } from "../shared/limits";
 
 const note = (page: number, text = `note ${page}`) => ({ path: "out/report.pdf", revision: "r1", page, text });
@@ -131,5 +131,12 @@ describe("note being typed", () => {
     for (let index = 0; index <= 50; index++) drafts.setComposing("ws", `${index}.pdf`, { revision: "r", page: 0, text: "t" });
     expect(drafts.composing("ws", "0.pdf")).toBeUndefined();
     expect(drafts.composing("ws", "50.pdf")).toBeDefined();
+  });
+
+  it("moves an empty editor to the last page a rewrite left, or closes it when none is left", () => {
+    expect(emptyNotePage(1, 3)).toBe(1);
+    expect(emptyNotePage(2, 1)).toBe(0);
+    expect(emptyNotePage(4, 3)).toBe(2);
+    expect(emptyNotePage(0, 0)).toBeNull();
   });
 });
