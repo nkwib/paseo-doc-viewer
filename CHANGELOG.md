@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.8.0 (unreleased)
+
+- Keep unfinished review notes available when a rewrite removes their original page or slide, including after closing and reopening the reader.
+- Add text-only review notes on PowerPoint slides. Notes retain the slide number and document revision; the sent review identifies notes from an older version. PDF page notes and image attachments remain compatible.
+- Match Paseo control sizes: 32 pt on wide desktop readers, 28 pt in narrow desktop panels, and 44 pt on phones. Show the memory-only draft lifetime beside the note editor.
+- Extend browser and isolated real-host checks with slide-note delivery and restored file tabs. The host suite can use an unreleased devkit through `PASEO_DEVKIT_ENTRY`.
+
 ## 0.7.0 (2026-10-30)
 
 ### New

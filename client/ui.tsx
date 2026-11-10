@@ -10,8 +10,8 @@ import { canRetry } from "./paging";
 export function makeStyles(theme: PluginTheme, compact: boolean, bottomInset = 0, touch = compact) {
   const c = theme.colors;
   const gutter = compact ? 12 : 16;
-  // Phones get 40 pt controls plus a 4 pt hit slop (44 pt targets); desktop keeps 28.
-  const controlSize = touch ? 40 : 28;
+  // Match Paseo's default desktop and phone controls; narrow desktop panels use compact controls.
+  const controlSize = touch ? 44 : compact ? 28 : 32;
   return {
     compact,
     touch,

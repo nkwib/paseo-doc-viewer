@@ -20,6 +20,21 @@ function sampleDraft() {
 }
 
 describe("review message", () => {
+  it("distinguishes slide notes, preserves revision warnings, and never attaches slide images or PDF pins", () => {
+    const drafts = createReviewDrafts();
+    const slide = drafts.addNote("ws", { path: "deck.pptx", revision: previous, page: 6, unit: "slide", text: "Shorten this title\nand enlarge the chart" })!;
+    expect(drafts.attachImage("ws", pageImageKey(slide), image)).toBe(false);
+    drafts.addNote("ws", { path: "report.pdf", revision: current, page: 0, text: "Check the date" });
+    const message = formatReview(drafts.get("ws"), () => current, () => "PDF pin");
+    expect(message.text).toContain("notes by page or slide (numbered from 1)");
+    expect(message.text).toContain('"deck.pptx", older version');
+    expect(message.text).toContain("the file has changed since these notes");
+    expect(message.text).toContain("- Slide 7: Shorten this title\n  and enlarge the chart");
+    expect(message.text).not.toContain("Slide 7 (pinned");
+    expect(message.text).toContain('- Page 1 (pinned as "PDF pin"): Check the date');
+    expect(message.images).toEqual([]);
+  });
+
   it("round-trips the modified time encoded in a document revision", () => {
     expect(revisionModifiedAt(current)).toBe(modified);
     expect(revisionModifiedAt("opaque")).toBeNull();

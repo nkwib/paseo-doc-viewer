@@ -1,6 +1,6 @@
 import { revisionModifiedAt, revisionSize } from "../shared/revision";
 import { quotedLine, safeIndentedText } from "../shared/safe-text";
-import { pageImageKey, type ReviewDraft, type ReviewNote } from "./review-draft";
+import { noteLocation, pageImageKey, reviewUnit, type ReviewDraft, type ReviewNote } from "./review-draft";
 
 export type RevisionStatus = "current" | "older" | "unknown";
 
@@ -31,7 +31,7 @@ export function versionLabel(revision: string): string | null {
   return `modified ${modified}, ${size.toLocaleString("en-US")} bytes`;
 }
 
-export type PinLabel = (note: Pick<ReviewNote, "path" | "page" | "revision">) => string | undefined;
+export type PinLabel = (note: Pick<ReviewNote, "path" | "page" | "revision" | "unit">) => string | undefined;
 
 interface Group {
   path: string;
@@ -64,7 +64,7 @@ export function formatReview(draft: ReviewDraft, currentRevision: (path: string)
     const heading = `${quotedLine(group.path)}${group.older ? ", older version" : ""}${version ? ` (${version})` : ""}`;
     const lines = group.notes.map((note) => {
       const key = pageImageKey(note);
-      const image = draft.images[key];
+      const image = reviewUnit(note) === "page" ? draft.images[key] : undefined;
       let marker = "";
       if (image) {
         if (!imageNumbers.has(key)) {
@@ -77,12 +77,13 @@ export function formatReview(draft: ReviewDraft, currentRevision: (path: string)
       }
       // File names (written by agents and cloned repos) and pin labels are quoted, so neither can start a
       // line, a heading or a note; note text keeps its lines, each indented under its "- Page" line.
-      const pin = pinLabel(note)?.replace(/\s+/g, " ").trim();
-      return `- Page ${note.page + 1}${pin ? ` (pinned as ${quotedLine(pin)})` : ""}: ${safeIndentedText(note.text, "  ")}${marker}`;
+      const pin = reviewUnit(note) === "page" ? pinLabel(note)?.replace(/\s+/g, " ").trim() : undefined;
+      return `- ${noteLocation(note)}${pin ? ` (pinned as ${quotedLine(pin)})` : ""}: ${safeIndentedText(note.text, "  ")}${marker}`;
     });
     return [group.older ? `${heading}; the file has changed since these notes` : heading, ...lines].join("\n");
   });
-  const parts = [INTRO, ...sections];
+  const intro = draft.notes.some((note) => reviewUnit(note) === "slide") ? INTRO.replace("by page", "by page or slide") : INTRO;
+  const parts = [intro, ...sections];
   if (imageLines.length > 0) parts.push(["Attached images:", ...imageLines].join("\n"));
   return { text: parts.join("\n\n"), images };
 }

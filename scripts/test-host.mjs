@@ -3,9 +3,11 @@ import { execFileSync } from "node:child_process";
 import { copyFile, mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import { expect as baseExpect } from "@playwright/test";
-import { agentTimeline, assertSafeHome, assertSafePort, daemonDown, daemonUp, PaseoWeb, pluginRows, runFakeAgentTurn, sendFakeAgentTurn } from "paseo-plugin-devkit";
+// Point at an unreleased devkit's dist/index.js while developing both repositories together.
+const { agentTimeline, assertSafeHome, assertSafePort, daemonDown, daemonUp, PaseoWeb, pluginRows, runFakeAgentTurn, sendFakeAgentTurn } =
+  await import(process.env.PASEO_DEVKIT_ENTRY ? pathToFileURL(resolve(process.env.PASEO_DEVKIT_ENTRY)).href : "paseo-plugin-devkit");
 
 const expect = baseExpect.configure({ timeout: 20_000 });
 const plugin = resolve(dirname(fileURLToPath(import.meta.url)), "..");
@@ -57,7 +59,8 @@ try {
   await page.getByRole("button", { name: "Open Explorer sidebar", exact: true }).click();
   await page.getByRole("button", { name: "Browse workspace files", exact: true }).click();
   const openFile = async (file) => {
-    await page.getByText(file, { exact: true }).last().dblclick();
+    if (web.openFile) await web.openFile(file);
+    else await page.getByText(file, { exact: true }).last().dblclick();
     await expect(page.getByRole("button", { name: file, exact: true })).toBeVisible();
   };
   const pdfField = page.getByRole("textbox", { name: "Page number of 3", exact: true });
@@ -65,7 +68,8 @@ try {
   await expect(pdfField).toHaveValue("1");
   await expect(page.getByRole("progressbar", { name: "Loading", exact: true })).toHaveCount(0);
   // Pin the host's preview tab before opening another document.
-  await page.getByRole("button", { name: "statement.pdf", exact: true }).dblclick();
+  if (web.pinFile) await web.pinFile("statement.pdf");
+  else await page.getByRole("button", { name: "statement.pdf", exact: true }).dblclick();
   await openFile("statement.pdf");
   await expect(page.getByRole("button", { name: "statement.pdf", exact: true })).toHaveCount(1);
   for (const label of ["Back to documents", "Open full view"]) await expect(page.getByRole("button", { name: label, exact: true })).toHaveCount(0);
@@ -83,8 +87,11 @@ try {
 
   await page.getByRole("button", { name: "Add note to page 1", exact: true }).click();
   await page.getByRole("textbox", { name: "Note text", exact: true }).fill("Keep this note when the file tab closes");
-  await page.getByRole("button", { name: "statement.pdf", exact: true }).hover();
-  await page.getByRole("button", { name: "statement.pdf", exact: true }).locator("..").getByRole("button", { name: "Close", exact: true }).click();
+  if (web.closeFile) await web.closeFile("statement.pdf");
+  else {
+    await page.getByRole("button", { name: "statement.pdf", exact: true }).hover();
+    await page.getByRole("button", { name: "statement.pdf", exact: true }).locator("..").getByRole("button", { name: "Close", exact: true }).click();
+  }
   await openFile("statement.pdf");
   await expect(page.getByRole("textbox", { name: "Note text", exact: true })).toHaveValue("Keep this note when the file tab closes");
   await page.getByRole("button", { name: "Cancel", exact: true }).click();
@@ -105,6 +112,21 @@ try {
   await web.shot(join(artifacts, "file-tab-slides.png"));
   passed("Excel grids and PowerPoint slide navigation render inside real file tabs");
 
+  await page.getByRole("button", { name: "Add note to slide 2", exact: true }).click();
+  await expect(page.getByRole("checkbox", { name: "Attach page image", exact: true })).toHaveCount(0);
+  await page.getByRole("textbox", { name: "Note text", exact: true }).fill("Shorten the slide title");
+  await page.getByRole("button", { name: "Add note", exact: true }).click();
+  await page.getByRole("button", { name: "Review notes (1)", exact: true }).click();
+  const review = page;
+  await expect(review.getByLabel("Review message", { exact: true })).toContainText("- Slide 2: Shorten the slide title");
+  await review.getByRole("button", { name: /^Send review to / }).click();
+  await expect(review.getByText(/^Review sent to /)).toBeVisible();
+  await expect.poll(() => JSON.stringify(agentTimeline(turn.agentId, { name }))).toContain("- Slide 2: Shorten the slide title");
+  await review.screenshot({ path: join(artifacts, "slide-review-sent.png") });
+  await web.openWorkspace(serverId, selected.workspaceId);
+  if (web.openFiles) await web.openFiles();
+  passed("a text-only slide note reaches the fake agent with its slide number and document revision");
+
   await openFile("live.csv");
   const picker = page.getByRole("dialog");
   await expect(picker.getByRole("radio", { name: "Viewer \u2014 paseo-doc-viewer", exact: true })).toBeVisible();
@@ -124,6 +146,7 @@ try {
   passed("an actual fake-agent rewrite refreshes the open tab; deletion and restoration recover");
 
   const openWith = async (label) => {
+    if (web.openWith) return web.openWith("live.csv", label);
     await page.getByRole("button", { name: "live.csv", exact: true }).click({ button: "right" });
     await page.getByRole("menuitem", { name: "Open with…", exact: true }).hover();
     await page.getByRole("menuitem", { name: label, exact: true }).click();
@@ -141,6 +164,14 @@ try {
   await expect(page.getByText("Restored file", { exact: true })).toBeVisible();
   await web.shot(join(artifacts, "open-with-viewer.png"));
   passed("Open with switches to Source, remembers its association on reopen, and switches back to Viewer");
+
+  await openFile("statement.pdf");
+  const savedPage = await pdfField.inputValue();
+  if (web.reload) await web.reload();
+  else await page.reload();
+  await expect(pdfField).toHaveValue(savedPage);
+  await expect(page.getByRole("button", { name: "statement.pdf", exact: true })).toHaveCount(1);
+  passed("browser reload restores the native file tab and its saved PDF position");
 
   await expect.poll(() => pluginRows(agentTimeline(turn.agentId, { name }), "turn-docs").length).toBeGreaterThan(0);
   passed("the real turn-ended hook appends a changed-documents timeline card");

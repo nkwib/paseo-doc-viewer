@@ -1,8 +1,8 @@
 {
   "name": "paseo-doc-viewer",
   "private": true,
-  "version": "0.7.0",
-  "description": "Read PDFs and Office documents, inspect spreadsheets and data, and send PDF page notes to an agent without leaving Paseo.",
+  "version": "0.8.0",
+  "description": "Read PDF and Office files, inspect spreadsheets and data, and send page or slide review notes to an agent.",
   "license": "MIT",
   "type": "module",
   "files": [

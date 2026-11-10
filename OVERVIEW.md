@@ -1,4 +1,4 @@
-PDF and Office viewer lets you review the files your agents produce without leaving Paseo. Read PDF and Office documents, inspect spreadsheets and data, and send PDF page notes to an agent. When a turn ends, a card lists the documents changed during that turn, with a button to open each one. The Documents panel highlights files changed since your last visit.
+PDF and Office viewer lets you review the files your agents produce without leaving Paseo. Read PDF and Office documents, inspect spreadsheets and data, and send PDF page and PowerPoint slide notes to an agent. When a turn ends, a card lists the documents changed during that turn, with a button to open each one. The Documents panel highlights files changed since your last visit.
 
 Requires Paseo 0.13.0 or later on both the app and daemon.
 
@@ -77,7 +77,7 @@ For document content, the plugin reads files inside the workspace directory. Pat
 
 ## Review notes
 
-Review notes stay in the app's memory on this device. They are not written to disk and are lost when the app reloads. Nothing leaves the device until you press Send review, which sends one message through your Paseo daemon to the agent you chose. The message contains the file paths, the modified time and size of the version you viewed, page numbers, the labels of pins on those pages and your note text. It also contains the page images you attached: at most 5, each at most 2000 px on each side and about 2 MB, rendered by the daemon from the file at that revision. They become part of that agent's conversation, and so reach whatever model provider that agent uses. Copy review copies the text only.
+Review notes stay in the app's memory on this device. They are not written to disk and are lost when the app reloads. Nothing leaves the device until you press Send review, which sends one message through your Paseo daemon to the agent you chose. The message contains the file paths, the modified time and size of the version you viewed, page or slide numbers, the labels of pins on PDF pages and your note text. PowerPoint slide notes are text-only; they do not include slide images. It also contains the page images you attached: at most 5, each at most 2000 px on each side and about 2 MB, rendered by the daemon from the file at that revision. They become part of that agent's conversation, and so reach whatever model provider that agent uses. Copy review copies the text only.
 
 ## Saved viewer state
 
