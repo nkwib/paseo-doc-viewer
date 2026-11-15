@@ -16,6 +16,29 @@ export function onWindowFocus(listener: () => void): () => void {
   return () => window.removeEventListener("focus", listener);
 }
 
+export type PinchWheel = { deltaY: number; x: number; y: number };
+type WheelInput = { ctrlKey: boolean; deltaY: number; clientX: number; clientY: number; preventDefault(): void };
+interface WheelTarget {
+  addEventListener(type: "wheel", listener: (event: WheelInput) => void, options: { passive: false }): void;
+  removeEventListener(type: "wheel", listener: (event: WheelInput) => void): void;
+  getBoundingClientRect(): { left: number; top: number };
+}
+
+// Browsers report a trackpad pinch, like Ctrl with a mouse wheel, as a wheel event with ctrlKey set.
+// React listens to wheel events passively, so this listener is added directly: it has to stop the
+// page itself from zooming. `x` and `y` are relative to the element. Other wheel events still scroll.
+export function onPinchWheel(target: unknown, listener: (wheel: PinchWheel) => boolean): () => void {
+  if (Platform.OS !== "web" || !target) return () => {};
+  const element = target as WheelTarget;
+  const handle = (event: WheelInput) => {
+    if (!event.ctrlKey) return;
+    const rect = element.getBoundingClientRect();
+    if (listener({ deltaY: event.deltaY, x: event.clientX - rect.left, y: event.clientY - rect.top })) event.preventDefault();
+  };
+  element.addEventListener("wheel", handle, { passive: false });
+  return () => element.removeEventListener("wheel", handle);
+}
+
 export function createMediaUrl(parts: readonly Uint8Array[], mimeType: string): string | null {
   if (Platform.OS !== "web") return null;
   return URL.createObjectURL(new Blob(parts, { type: mimeType }));

@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import {
   type GestureResponderEvent,
   type LayoutChangeEvent,
@@ -21,7 +21,9 @@ import {
   responderClaim,
   scaleShift,
   tapZoom,
+  wheelScale,
 } from "./paging";
+import { onPinchWheel, type PinchWheel } from "./web";
 
 const PENDING_SCROLL_MS = 500;
 const TAP_MS = 250;
@@ -29,6 +31,8 @@ const TAP_SLOP_DP = 10;
 const DOUBLE_TAP_MS = 300;
 const DOUBLE_TAP_SLOP_DP = 30;
 const FLING_IDLE_MS = 80;
+// A wheel pinch has no end event; it ends once its wheel events stop.
+const WHEEL_PINCH_IDLE_MS = 150;
 
 type Point = { x: number; y: number };
 type Live = { scale: number; shift: Point };
@@ -65,6 +69,9 @@ export function usePinchZoom(zoom: number, setZoom: (zoom: number) => void, enab
   const lastTap = useRef<Touch | null>(null);
   const multiTouch = useRef(false);
   const pinchable = enabled && Platform.OS !== "web";
+  const wheelEnd = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const pinchWheel = useRef<(wheel: PinchWheel) => boolean>(() => false);
+  const stopPinchWheel = useRef(() => {});
 
   const measureOrigin = () =>
     frame.current?.measure((_x, _y, _width, _height, pageX, pageY) => {
@@ -90,22 +97,21 @@ export function usePinchZoom(zoom: number, setZoom: (zoom: number) => void, enab
 
   const claimFor = (event: GestureResponderEvent) => responderClaim({ touches: event.nativeEvent.touches.length, zoom, pinchable });
 
-  const startPinch = (a: NativeTouchEvent, b: NativeTouchEvent) => {
-    const anchor = anchorAt(midpoint(a, b));
+  const beginPinch = (anchor: Point, startDistance: number): Pinch => {
     claim.current = "pinch";
     drag.current = null;
     pinch.current = {
-      distance: distance(a, b),
+      distance: startDistance,
       anchor,
       focal: { x: scroll.current.x + anchor.x, y: scroll.current.y + anchor.y },
       scale: 1,
     };
+    return pinch.current;
   };
 
-  const movePinch = (a: NativeTouchEvent, b: NativeTouchEvent) => {
-    const current = pinch.current;
-    if (!current) return;
-    const scale = pinchScale(current.distance, distance(a, b), zoom);
+  const startPinch = (a: NativeTouchEvent, b: NativeTouchEvent) => beginPinch(anchorAt(midpoint(a, b)), distance(a, b));
+
+  const showPinch = (current: Pinch, scale: number) => {
     current.scale = scale;
     setLive({
       scale,
@@ -115,6 +121,30 @@ export function usePinchZoom(zoom: number, setZoom: (zoom: number) => void, enab
       },
     });
   };
+
+  const movePinch = (a: NativeTouchEvent, b: NativeTouchEvent) => {
+    const current = pinch.current;
+    if (current) showPinch(current, pinchScale(current.distance, distance(a, b), zoom));
+  };
+
+  // Web only: the wheel events of a trackpad pinch scale the page around the pointer, like two fingers.
+  pinchWheel.current = (wheel) => {
+    if (!enabled) return false;
+    const current = pinch.current ?? beginPinch({ x: wheel.x - gutter, y: wheel.y - gutter }, 0);
+    showPinch(current, wheelScale(current.scale, wheel.deltaY, zoom));
+    if (wheelEnd.current) clearTimeout(wheelEnd.current);
+    wheelEnd.current = setTimeout(() => {
+      wheelEnd.current = null;
+      endGesture(false);
+    }, WHEEL_PINCH_IDLE_MS);
+    return true;
+  };
+
+  const setFrame = useCallback((node: View | null) => {
+    frame.current = node;
+    stopPinchWheel.current();
+    stopPinchWheel.current = onPinchWheel(node, (wheel) => pinchWheel.current(wheel));
+  }, []);
 
   const startPan = (touch: NativeTouchEvent) => {
     const point = touchPoint(touch);
@@ -160,7 +190,7 @@ export function usePinchZoom(zoom: number, setZoom: (zoom: number) => void, enab
   };
 
   const frameProps = {
-    ref: frame,
+    ref: setFrame,
     style: { flex: 1 },
     onLayout: (event: LayoutChangeEvent) => {
       viewport.current.height = event.nativeEvent.layout.height;
