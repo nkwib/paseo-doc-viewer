@@ -89,6 +89,15 @@ export function pinchScale(startDistance: number, distance: number, zoom: number
   return Math.min(MAX_ZOOM / zoom, Math.max(MIN_ZOOM / zoom, distance / startDistance));
 }
 
+// A trackpad pinch arrives as Ctrl+wheel with deltaY = -100 * ln(scale change), in Chromium and Firefox alike.
+// A Ctrl+mouse wheel notch is about 100 px, so each event is capped to keep one notch near 1.6x.
+const WHEEL_ZOOM_STEP_PX = 50;
+
+export function wheelScale(scale: number, deltaY: number, zoom: number): number {
+  const step = Math.min(WHEEL_ZOOM_STEP_PX, Math.max(-WHEEL_ZOOM_STEP_PX, deltaY));
+  return Math.min(MAX_ZOOM / zoom, Math.max(MIN_ZOOM / zoom, scale * Math.exp(-step / 100)));
+}
+
 export function scaleShift(focal: number, center: number, scale: number): number {
   return (focal - center) * (1 - scale) + 0;
 }

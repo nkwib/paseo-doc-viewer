@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- Pinch on a trackpad to zoom PDF pages, slides and images in the Paseo desktop app and web browsers, around the pointer, as on phones. Ctrl with a mouse wheel zooms the same way, and the browser itself no longer zooms. Plain scrolling is unchanged.
+
 ## 0.8.0 (2026-11-10)
 
 - Keep unfinished review notes available when a rewrite removes their original page or slide, including after closing and reopening the reader.

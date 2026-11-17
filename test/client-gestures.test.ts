@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { FLING_SECONDS, flingOffset, keepsResponder, panOffset, imageFitWidth, responderClaim, zoomedText, zoomGroupWidth } from "../client/paging";
+import { FLING_SECONDS, flingOffset, keepsResponder, panOffset, imageFitWidth, responderClaim, wheelScale, zoomedText, zoomGroupWidth } from "../client/paging";
 
 describe("zoomed page gestures", () => {
   it("claims a single finger as a pan only when the page is zoomed in", () => {
@@ -36,6 +36,24 @@ describe("zoomed page gestures", () => {
     expect(flingOffset(500, 2, 4000, 400)).toBe(Math.max(0, 500 - 2000 * FLING_SECONDS));
     expect(flingOffset(3500, -5, 4000, 400)).toBe(3600);
     expect(flingOffset(500, 0, 4000, 400)).toBe(500);
+  });
+});
+
+describe("wheel pinch", () => {
+  it("scales by the trackpad's pinch delta, out and back in", () => {
+    expect(wheelScale(1, -10, 1)).toBeCloseTo(Math.exp(0.1));
+    expect(wheelScale(wheelScale(1, -10, 1), 10, 1)).toBeCloseTo(1);
+  });
+
+  it("limits a Ctrl+mouse wheel notch to one bounded step", () => {
+    expect(wheelScale(1, -100, 1)).toBeCloseTo(Math.exp(0.5));
+    expect(wheelScale(1, -100, 1)).toBe(wheelScale(1, -50, 1));
+  });
+
+  it("stays within the zoom range from the current zoom", () => {
+    expect(wheelScale(2.9, -50, 1)).toBe(3);
+    expect(wheelScale(1, -50, 3)).toBe(1);
+    expect(wheelScale(0.6, 50, 2)).toBe(0.5);
   });
 });
 
