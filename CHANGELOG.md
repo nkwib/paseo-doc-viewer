@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+- The "Show changed documents after each turn" switch is now a three-way setting, "Changed documents after each turn": This session (the default), Anywhere in the workspace, or Off. Anywhere in the workspace is the old behavior. Off adds no cards and scans nothing.
+- In This session, documents that changed while another agent's turn was also running in the same workspace are gathered in one folded row at the bottom of the card, "May be from another session · N documents", with the usual Show and Hide button. File times cannot say whose they are, so they are not hidden, just kept out of the way: it matters when one agent's script writes a dozen screenshots while another agent runs a turn. Documents that changed while no other turn ran keep their own rows. The row takes rows last, after the turn's files and folder rows, so it never pushes them into "+N more", and a card made only of such documents still shows, as that one row. Files inside a new checkout or folder that overlapped go to this row, so a checkout row folds only the turn's own files. Cards of agents that work alone look the same as before. A card with this row is timeline data version 3 (`groups` with a row of reason `other-session`, `path` empty, whose files may be new or changed); other cards are still version 1 or 2. A client from before this change has no version 3 renderer, so Paseo shows "Plugin timeline item unavailable" for such a card.
+- The setting keeps `turnCards` as an on/off and adds an optional `turnCardsScope` (`session` or `workspace`; unset reads as `session`). Earlier clients still read Off correctly, but one that saves settings drops the scope.
+
 ## 0.8.0 (2026-11-10)
 
 - Keep unfinished review notes available when a rewrite removes their original page or slide, including after closing and reopening the reader.

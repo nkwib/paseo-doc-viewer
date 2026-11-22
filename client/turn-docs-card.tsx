@@ -3,7 +3,7 @@ import { Icon } from "@getpaseo/plugin/client/react-native";
 import { type ReactElement, useEffect, useMemo, useReducer, useState } from "react";
 import { Image, Pressable, Text, View } from "react-native";
 import { viewerSettingsRpc } from "../shared/settings";
-import { type TurnDocs, type TurnDocsFile, type TurnDocsGroup, type TurnDocsV1, upgradeTurnDocs } from "../shared/turn-docs";
+import { type TurnDocsFile, type TurnDocsGroup, type TurnDocsOtherSession, type TurnDocsV1, type TurnDocsV3, upgradeTurnDocs } from "../shared/turn-docs";
 import { cardThumbnailIndices, createCardThumbnails, nextCardPriority } from "./card-thumbnails";
 import { listedFiles, TURN_CARDS_SETTING_HINT, TURN_FILE_PILL, TURN_GROUP, TURN_THUMBNAIL_SIZE, turnDocsNote, turnDocsTitle, turnFilePill, type TurnFilePill } from "./turn-docs";
 import { baseName, humanSize, KIND_ICON, KIND_LABEL, parentDir } from "./format";
@@ -20,7 +20,7 @@ type Theme = PluginTimelineItemProps["theme"];
 
 // Closes over the client: timeline item props carry no navigation or RPC provider in this SDK.
 export function createTurnDocsCard(client: CardClient) {
-  return function TurnDocsCard({ item, theme, layout }: PluginTimelineItemProps<TurnDocs>) {
+  return function TurnDocsCard({ item, theme, layout }: PluginTimelineItemProps<TurnDocsV3>) {
     const data = item.data;
     const styles = useMemo(() => makeStyles(theme, layout.compact), [theme, layout.compact]);
     const size = layout.compact ? TURN_THUMBNAIL_SIZE.compact : TURN_THUMBNAIL_SIZE.wide;
@@ -42,11 +42,12 @@ export function createTurnDocsCard(client: CardClient) {
       }
     };
     const openDocuments = () => client.showDocuments(data.workspaceId);
-    const fileRow = (file: TurnDocsFile, index: number, within = "") => (
+    const fileRow = (file: TurnDocsFile, index: number, within = "", unsure = false) => (
       <FileRow
         key={file.path}
         file={file}
         within={within}
+        unsure={unsure}
         thumbnail={thumbnails?.state(index)}
         pill={turnFilePill(file, opened[file.path])}
         palette={palette}
@@ -76,7 +77,7 @@ export function createTurnDocsCard(client: CardClient) {
               <GroupRow group={group} open={open} size={size} styles={styles} theme={theme} onToggle={() => toggle(group.path)} />
               {open ? (
                 <View style={{ marginLeft: size / 2 + 4, paddingLeft: 6, borderLeftWidth: 1, borderLeftColor: theme.colors.border }}>
-                  {group.files.map((file, index) => fileRow(file, first + index, group.path))}
+                  {group.files.map((file, index) => fileRow(file, first + index, group.path, group.reason === "other-session"))}
                   {group.count > group.files.length ? (
                     <MoreInDocuments count={group.count - group.files.length} styles={styles} theme={theme} onPress={openDocuments} />
                   ) : null}
@@ -109,7 +110,7 @@ function MoreInDocuments({ count, styles, theme, onPress }: { count: number; sty
   );
 }
 
-export function legacyTurnDocsCard(Card: (props: PluginTimelineItemProps<TurnDocs>) => ReactElement) {
+export function legacyTurnDocsCard(Card: (props: PluginTimelineItemProps<TurnDocsV3>) => ReactElement) {
   return function TurnDocsCardV1(props: PluginTimelineItemProps<TurnDocsV1>) {
     return <Card {...props} item={{ ...props.item, data: upgradeTurnDocs(props.item.data) }} />;
   };
@@ -190,10 +191,12 @@ function FileThumbnail({ file, state, size, palette, theme }: { file: TurnDocsFi
   );
 }
 
-// A folder row holds only new files (turnDocsGroupSchema), so it always reads New.
+// A folder row holds only new files (turnDocsGroupSchema), so it always reads New. The other-session row has
+// no folder and no New pill: its files each carry their own pill once shown.
 function GroupRow({ group, open, size, styles, theme, onToggle }: {
-  group: TurnDocsGroup; open: boolean; size: number; styles: Styles; theme: Theme; onToggle(): void;
+  group: TurnDocsGroup | TurnDocsOtherSession; open: boolean; size: number; styles: Styles; theme: Theme; onToggle(): void;
 }) {
+  const unsure = group.reason === "other-session";
   const folder = parentDir(group.path);
   const { detail, spoken } = TURN_GROUP[group.reason];
   // The name stays put when the row opens: aria-expanded says which it is, and the name holds the visible Show or Hide.
@@ -209,9 +212,9 @@ function GroupRow({ group, open, size, styles, theme, onToggle }: {
       <View style={{ flex: 1, minWidth: 0, gap: 2 }}>
         <View style={{ flexDirection: "row", alignItems: "center", gap: 6, minWidth: 0 }}>
           <Text style={[styles.text, { flexShrink: 1 }]} numberOfLines={1}>
-            {`${baseName(group.path)}/`}
+            {unsure ? TURN_GROUP["other-session"].title : `${baseName(group.path)}/`}
           </Text>
-          <StatusPill theme={theme} styles={styles} status={TURN_FILE_PILL.new.status} label="short" />
+          {unsure ? null : <StatusPill theme={theme} styles={styles} status={TURN_FILE_PILL.new.status} label="short" />}
         </View>
         <Text style={styles.muted} numberOfLines={1}>
           {folder ? `${folder} · ` : ""}
@@ -223,7 +226,7 @@ function GroupRow({ group, open, size, styles, theme, onToggle }: {
         styles={styles}
         icon={open ? "ChevronUp" : "ChevronDown"}
         label={action}
-        accessibilityLabel={`Show or hide ${group.path}, ${spoken}, ${group.count} ${group.count === 1 ? "document" : "documents"}`}
+        accessibilityLabel={`Show or hide ${unsure ? "the documents that " + spoken + "," : `${group.path}, ${spoken},`} ${group.count} ${group.count === 1 ? "document" : "documents"}`}
         expanded={open}
         onPress={onToggle}
       />
@@ -231,8 +234,8 @@ function GroupRow({ group, open, size, styles, theme, onToggle }: {
   );
 }
 
-function FileRow({ file, within, thumbnail, pill, palette, size, styles, theme, onOpen }: {
-  file: TurnDocsFile; within: string; thumbnail: ThumbnailState | undefined; pill: TurnFilePill; palette: KindPalette; size: number; styles: Styles; theme: Theme; onOpen(): void;
+function FileRow({ file, within, unsure, thumbnail, pill, palette, size, styles, theme, onOpen }: {
+  file: TurnDocsFile; within: string; unsure: boolean; thumbnail: ThumbnailState | undefined; pill: TurnFilePill; palette: KindPalette; size: number; styles: Styles; theme: Theme; onOpen(): void;
 }) {
   const folder = within ? parentDir(file.path.slice(within.length + 1)) : parentDir(file.path);
   const { status, spoken } = TURN_FILE_PILL[pill];
@@ -258,7 +261,7 @@ function FileRow({ file, within, thumbnail, pill, palette, size, styles, theme, 
         theme={theme}
         styles={styles}
         label="Open"
-        accessibilityLabel={`Open ${file.path}, ${KIND_LABEL[file.kind]}, ${spoken}`}
+        accessibilityLabel={`Open ${file.path}, ${KIND_LABEL[file.kind]}, ${spoken}${unsure ? `, ${TURN_GROUP["other-session"].spoken}` : ""}`}
         onPress={onOpen}
       />
     </View>

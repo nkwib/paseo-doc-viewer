@@ -39,16 +39,51 @@ export const turnDocsV1Schema = z.object({
 
 export const turnDocsSchema = turnDocsV1Schema.extend({ groups: z.array(turnDocsGroupSchema) });
 
+// The row of files that changed while another agent's turn also ran in the workspace (the This session scope).
+// Unlike a folder row its files may be changed ones, and it has no folder: `path` is empty. It is always the last row.
+export const OTHER_SESSION_REASON = "other-session";
+export const turnDocsOtherSessionSchema = z.object({
+  reason: z.literal(OTHER_SESSION_REASON),
+  path: z.literal(""),
+  count: z.number(),
+  files: z.array(turnDocsFileSchema),
+});
+
+// Version 3: version 2 plus that row. Only cards that contain one are written as version 3.
+export const turnDocsV3Schema = turnDocsV1Schema.extend({ groups: z.array(z.union([turnDocsGroupSchema, turnDocsOtherSessionSchema])) });
+
+// A turn of one agent in the workspace, as the plugin saw it: `end` is null while it runs.
+export interface TurnWindow {
+  start: number;
+  end: number | null;
+}
+
+// "This session" scope. Every file listed changed inside this turn, and the plugin only sees file times and
+// turn windows, so a file changed while another agent's turn also ran cannot be told apart: it goes to its own
+// row rather than being dropped, because it may be this agent's. A file changed while no other turn ran stays
+// a normal one (this session's, or the user's or a program's, which no scope can tell apart). Both lists keep
+// the order they came in, newest first.
+export function splitOtherSessions(files: readonly TurnDocsFile[], changedAt: (path: string) => number | undefined, others: readonly TurnWindow[]): { own: TurnDocsFile[]; overlapped: TurnDocsFile[] } {
+  const overlaps = (path: string) => {
+    const at = changedAt(path);
+    return at !== undefined && others.some((turn) => at >= turn.start - TURN_WINDOW_SLACK_MS && (turn.end === null || at <= turn.end + TURN_WINDOW_SLACK_MS));
+  };
+  return { own: files.filter((file) => !overlaps(file.path)), overlapped: files.filter((file) => overlaps(file.path)) };
+}
+
 export type TurnDocsFile = z.infer<typeof turnDocsFileSchema>;
 export type TurnDocsGroup = z.infer<typeof turnDocsGroupSchema>;
+export type TurnDocsOtherSession = z.infer<typeof turnDocsOtherSessionSchema>;
 export type TurnDocsV1 = z.infer<typeof turnDocsV1Schema>;
 export type TurnDocs = z.infer<typeof turnDocsSchema>;
+export type TurnDocsV3 = z.infer<typeof turnDocsV3Schema>;
 
 // Version 2 adds folder rows. A card without one is written as version 1, which bundles from before
-// folder rows render too.
-export type TurnDocsRow = { type: "plugin"; id: string; kind: string } & ({ version: 1; data: TurnDocsV1 } | { version: 2; data: TurnDocs });
+// folder rows render too. Version 3 adds the other-session row and is written only for a card that has one: a
+// reader without a version 3 renderer shows the host's "Plugin timeline item unavailable" for that card alone.
+export type TurnDocsRow = { type: "plugin"; id: string; kind: string } & ({ version: 1; data: TurnDocsV1 } | { version: 2; data: TurnDocs } | { version: 3; data: TurnDocsV3 });
 
-export const upgradeTurnDocs = (data: TurnDocsV1): TurnDocs => ({ ...data, groups: [] });
+export const upgradeTurnDocs = (data: TurnDocsV1): TurnDocsV3 => ({ ...data, groups: [] });
 
 export interface ScannedFile {
   path: string;
@@ -161,33 +196,46 @@ function ancestors(path: string): string[] {
 }
 
 // One row per turn; null when nothing changed, so chat-only and canceled no-op turns add no card.
-// Files past the cap, or past the daemon's 64 KiB data limit, count into moreCount.
+// Files past the cap, or past the daemon's 64 KiB data limit, count into moreCount. Rows go to files first, then
+// folder rows, and the other-session row last: it never pushes the turn's own files or folders into "+N more".
+// A card made only of overlapped files still shows, as that one row.
 export function turnDocsRow(
-  input: Omit<TurnDocs, "files" | "groups" | "moreCount"> & { files: readonly TurnDocsFile[]; groups?: readonly TurnDocsGroup[]; turnId: string | null },
+  input: Omit<TurnDocs, "files" | "groups" | "moreCount"> & { files: readonly TurnDocsFile[]; groups?: readonly TurnDocsGroup[]; overlapped?: readonly TurnDocsFile[]; turnId: string | null },
   { maxFiles = TURN_DOCS_MAX_FILES, maxBytes = TIMELINE_DATA_MAX_BYTES } = {},
 ): TurnDocsRow | null {
-  const { turnId, files, groups = [], ...rest } = input;
-  if (files.length === 0 && groups.length === 0) return null;
-  const total = files.length + groups.reduce((sum, group) => sum + group.count, 0);
+  const { turnId, files, groups = [], overlapped = [], ...rest } = input;
+  if (files.length === 0 && groups.length === 0 && overlapped.length === 0) return null;
+  const total = files.length + groups.reduce((sum, group) => sum + group.count, 0) + overlapped.length;
   // Files take the rows first: a report must not drop to "+N more" behind a pile of new checkouts.
   const shownFiles = files.slice(0, maxFiles);
-  const shownGroups = groups.slice(0, maxFiles - shownFiles.length).map((group) => ({ ...group, files: group.files.slice(0, maxFiles) }));
-  const build = (): TurnDocs => {
+  const shownGroups: (TurnDocsGroup | TurnDocsOtherSession)[] = groups.slice(0, maxFiles - shownFiles.length).map((group) => ({ ...group, files: group.files.slice(0, maxFiles) }));
+  if (overlapped.length > 0 && shownFiles.length + shownGroups.length < maxFiles) {
+    shownGroups.push({ reason: OTHER_SESSION_REASON, path: "", count: overlapped.length, files: overlapped.slice(0, maxFiles) });
+  }
+  const build = (): TurnDocsV3 => {
     const shown = shownFiles.length + shownGroups.reduce((sum, group) => sum + group.count, 0);
     return { ...rest, files: shownFiles, groups: shownGroups, moreCount: total - shown };
   };
   let data = build();
   while (byteLength(JSON.stringify(data)) > maxBytes) {
-    const widest = shownGroups.reduce<TurnDocsGroup | null>((best, group) => (group.files.length > (best?.files.length ?? 0) ? group : best), null);
+    // The other-session row gives up its files first, then the folder rows, so the turn's own files stay longest.
+    const other = shownGroups.find((group) => group.reason === OTHER_SESSION_REASON);
+    const widest = other && other.files.length > 0 ? other : shownGroups.reduce<TurnDocsGroup | TurnDocsOtherSession | null>((best, group) => (group.files.length > (best?.files.length ?? 0) ? group : best), null);
     if (widest) widest.files = widest.files.slice(0, -1);
     else if (shownFiles.length > 0) shownFiles.pop();
     else if (shownGroups.length > 0) shownGroups.pop();
     else break;
     data = build();
   }
-  const { groups: shown, ...card } = data;
   const id = turnDocsRowId(turnId, input.startedAt);
-  return shown.length > 0 ? { type: "plugin", id, kind: TURN_DOCS_KIND, version: 2, data } : { type: "plugin", id, kind: TURN_DOCS_KIND, version: 1, data: card };
+  if (shownGroups.length === 0) {
+    const { groups: _none, ...card } = data;
+    return { type: "plugin", id, kind: TURN_DOCS_KIND, version: 1, data: card };
+  }
+  const folderRows = shownGroups.filter((group): group is TurnDocsGroup => group.reason !== OTHER_SESSION_REASON);
+  return folderRows.length === shownGroups.length
+    ? { type: "plugin", id, kind: TURN_DOCS_KIND, version: 2, data: { ...data, groups: folderRows } }
+    : { type: "plugin", id, kind: TURN_DOCS_KIND, version: 3, data };
 }
 
 // Stable per turn: a retried append replaces the row instead of adding a second card. The start time

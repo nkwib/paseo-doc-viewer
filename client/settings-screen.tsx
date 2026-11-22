@@ -1,9 +1,10 @@
 import { useSettings, type PluginSurfaceProps } from "@getpaseo/plugin/client";
 import { SettingsAction, SettingsCard, SettingsSection, SettingsSelect, SettingsSwitch } from "@getpaseo/plugin/client/ui";
 import { Text, View } from "react-native";
-import { viewerSettings } from "../shared/settings";
+import { turnCardsMode, viewerSettings, withTurnCardsMode, type TurnCardsMode } from "../shared/settings";
 import { kindColorsSetting } from "./use-kind-colors";
 import { OPEN_OPTIONS, openPreference, type OpenPreference } from "./open-target";
+import { TURN_CARDS_HINT, TURN_CARDS_OPTIONS } from "./turn-docs";
 
 export function ViewerSettings({ theme }: PluginSurfaceProps) {
   const settings = useSettings(viewerSettings);
@@ -29,12 +30,13 @@ export function ViewerSettings({ theme }: PluginSurfaceProps) {
     <View style={{ gap: 24 }}>
       <SettingsSection title="Agent turns">
         <SettingsCard>
-          <SettingsSwitch
-            label="Show changed documents after each turn"
-            hint="A timeline card lists the documents whose modified time falls inside the turn, whoever changed them."
-            value={values.turnCards}
+          <SettingsSelect
+            label="Changed documents after each turn"
+            hint={TURN_CARDS_HINT}
+            value={turnCardsMode(values)}
+            options={TURN_CARDS_OPTIONS}
             disabled={settings.saving}
-            onValueChange={(turnCards: boolean) => void settings.save({ ...values, turnCards }, settings.revision)}
+            onValueChange={(mode: TurnCardsMode) => void settings.save(withTurnCardsMode(values, mode), settings.revision)}
           />
         </SettingsCard>
       </SettingsSection>
