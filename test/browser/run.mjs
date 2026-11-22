@@ -867,9 +867,9 @@ try {
   await page.screenshot({ path: `${directory}/turn-card-phone.png` });
   await page.goto(`http://127.0.0.1:${port}/?compact&settingsFail`);
   await page.getByRole("button", { name: "Turn card", exact: true }).click();
-  await expect(page.getByText("Turn these cards off in Settings, Document viewer.", { exact: true })).toHaveCount(0);
+  await expect(page.getByText("Change or turn off these cards in Settings, Document viewer.", { exact: true })).toHaveCount(0);
   await page.getByRole("button", { name: settingsLinkName, exact: true }).click();
-  await expect(page.getByText("Turn these cards off in Settings, Document viewer.", { exact: true })).toBeVisible();
+  await expect(page.getByText("Change or turn off these cards in Settings, Document viewer.", { exact: true })).toBeVisible();
   const shots = process.env.TURN_CARD_SHOTS ?? directory;
   await mkdir(shots, { recursive: true });
   await page.setViewportSize({ width: 1100, height: 1000 });

@@ -10,7 +10,7 @@ import { searchGenerations } from "./server/search";
 import { workspacePath, workspaceRoot } from "./server/paths";
 import { forgetScan, hasDocuments, scannedDocuments } from "./server/recent";
 import { createTurnDocs } from "./server/turn-docs";
-import { viewerSettings } from "./shared/settings";
+import { turnCardsMode, viewerSettings } from "./shared/settings";
 import { docBlocksRpc, docIssuesRpc, docOpenRpc, docPageRpc, docRowsRpc, docCellRpc, docsRecentRpc, docsVisitRpc, docsAnyRpc, docTextRpc, docThumbnailRpc, mediaChunkRpc, fileInfoRpc, fileChunkRpc, docLocateRpc, docSearchRpc, tipsDismissRpc, tipsReadRpc, documentsViewReadRpc, documentsViewWriteRpc, viewerStateOpenedRevisionsRpc, viewerStateOpenedRpc, viewerStatePinRpc, viewerStateReadRpc, viewerStateReviewRpc, viewerStateWriteRpc, reviewPageImageRpc } from "./shared/rpc";
 
 // Workspace roots are salted with the viewer-state secret, so the file does not reveal them.
@@ -22,10 +22,14 @@ export default function contribute(server: PluginServerContext) {
   const settings = server.registerSettings(viewerSettings);
   const turnDocs = createTurnDocs({
     scan: scannedDocuments,
-    // An unreadable settings file keeps the default (on) rather than silently dropping cards.
+    // An unreadable settings file keeps the default (on, This session) rather than silently dropping cards.
     enabled: async () => {
       const state = await settings.read().catch(() => null);
-      return state?.status !== "ready" || state.values.turnCards;
+      return state?.status !== "ready" || turnCardsMode(state.values) !== "off";
+    },
+    scope: async () => {
+      const state = await settings.read().catch(() => null);
+      return state?.status === "ready" && turnCardsMode(state.values) === "workspace" ? "workspace" : "session";
     },
   });
   const unsubscribe = [

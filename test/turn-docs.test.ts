@@ -23,6 +23,7 @@ import {
   type ScannedFile,
   type ScannedFolders,
   type TurnDocs,
+  type TurnDocsV3,
   type TurnDocsFile,
   type TurnDocsGroup,
   type TurnDocsRow,
@@ -186,7 +187,7 @@ describe("turnDocsRow", () => {
   const group = (path: string, count: number, pathLength = 10): TurnDocsGroup =>
     ({ reason: "checkout", path, count, files: files(count, pathLength).map((entry) => ({ ...entry, path: `${path}/${entry.path}`, status: "new" })) });
   // What the client renders: it reads a version 1 row as a card without folder rows.
-  const rendered = (row: TurnDocsRow): TurnDocs => (row.version === 2 ? row.data : upgradeTurnDocs(row.data));
+  const rendered = (row: TurnDocsRow): TurnDocsV3 => (row.version === 1 ? upgradeTurnDocs(row.data) : row.data);
 
   it("writes a card without folder rows as version 1, which bundles from before folder rows render", () => {
     const row = turnDocsRow({ ...base, files: files(15) })!;
